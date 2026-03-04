@@ -1,10 +1,10 @@
 import { useEffect, useRef } from 'react';
 import { useAppStore } from './store';
 import { useRecorder } from './hooks/useRecorder';
-import { Mic, Square, Settings2, Loader2, Sparkles } from 'lucide-react';
+import { Mic, Square, Loader2, Sparkles } from 'lucide-react';
 
 function App() {
-  const { transcript, isProcessing, style, setStyle, setTranscript, setIsProcessing } = useAppStore();
+  const { transcript, isProcessing, setTranscript, setIsProcessing } = useAppStore();
   const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
@@ -26,12 +26,6 @@ function App() {
     return () => ws.close();
   }, [setTranscript, setIsProcessing]);
 
-  useEffect(() => {
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({ style }));
-    }
-  }, [style]);
-  
   const handleAudioData = (data: Blob) => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       wsRef.current.send(data);
@@ -51,20 +45,6 @@ function App() {
             <Sparkles className="w-6 h-6 text-indigo-400" />
           </div>
           <h1 className="text-xl font-medium text-gray-100 tracking-tight">hands-free</h1>
-        </div>
-        
-        {/* Style Selector */}
-        <div className="flex items-center gap-2 bg-gray-900 border border-gray-800 rounded-lg p-1">
-          <Settings2 className="w-4 h-4 text-gray-500 ml-2" />
-          <select
-            value={style}
-            onChange={(e) => setStyle(e.target.value)}
-            className="bg-transparent text-sm text-gray-300 py-1.5 px-2 outline-none cursor-pointer appearance-none"
-          >
-            <option value="professional">Professional Email</option>
-            <option value="slack">Slack Message</option>
-            <option value="casual">Casual Note</option>
-          </select>
         </div>
       </header>
 

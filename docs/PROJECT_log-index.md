@@ -10,6 +10,11 @@ A local-first Wispr Flow clone for macOS. High-speed dictation with smart format
 
 ## History
 
+### [2026-03-04] Simplify Dictation Flow | [log-20260304-simplify-dictation](./PROJECT_log-detail.md#log-20260304-simplify-dictation)
+- Fixed WebSocket connection port mismatch (8008 -> 8000).
+- Simplified dictation flow by removing style formatting.
+- Fixed Python virtual environment execution for `uvicorn`.
+
 ### [2026-02-27] Phase 1 Web Prototype Deployed | [log-20260227-engine](./PROJECT_log-detail.md#log-20260227-engine)
 - Scaffolded FastAPI + Faster-Whisper local backend.
 - Implemented real-time React/Zustand Vite frontend.

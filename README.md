@@ -23,9 +23,8 @@ npm run dev
 
 ### 3. Test
 - Open the provided `localhost` matching your Vite dev server in the browser.
-- Select your styling mode.
 - Click the microphone and dictate.
-- The transcript will format in real-time.
+- The transcript will appear in real-time.
 
 ## Project Brain
 See `/docs` for the `PROJECT_log-index.md`, `PROJECT_design.md`, and technical roadmap.

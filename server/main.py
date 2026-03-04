@@ -4,7 +4,6 @@ import traceback
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from faster_whisper import WhisperModel
-import formatter
 
 app = FastAPI()
 
@@ -32,7 +31,6 @@ async def websocket_endpoint(websocket: WebSocket):
     print("WebSocket connection accepted.")
     
     audio_buffer = bytearray()
-    current_style = "professional"
     
     try:
         while True:
@@ -54,26 +52,14 @@ async def websocket_endpoint(websocket: WebSocket):
                     text = " ".join([segment.text for segment in segments])
                     
                     if text.strip():
-                        # Format text based on selected style
-                        final_text = formatter.format_text(text, current_style)
-                        await websocket.send_json({"text": final_text})
+                        # Just return the raw text
+                        await websocket.send_json({"text": text})
                 except Exception as e:
                     print(f"Transcription error: {e}")
                 finally:
                     # Clean up temp file
                     if os.path.exists(temp_path):
                         os.remove(temp_path)
-            
-            # Handle text configuration updates (like changing styles)
-            elif "text" in data:
-                try:
-                    import json
-                    msg = json.loads(data["text"])
-                    if "style" in msg:
-                        current_style = msg["style"]
-                        print(f"Style updated to: {current_style}")
-                except Exception:
-                    pass
 
     except WebSocketDisconnect:
         print("Client disconnected.")

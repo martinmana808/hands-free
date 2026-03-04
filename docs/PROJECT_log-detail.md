@@ -50,3 +50,23 @@ render_diffs(file:///Users/martinmana/Documents/Projects/hands-free/task_plan.md
 
 ### Walkthrough
 render_diffs(file:///Users/martinmana/.gemini/antigravity/brain/926173de-3a33-43da-879e-098a2e446a92/walkthrough.md)
+
+---
+
+<a name="log-20260304-simplify-dictation"></a>
+## [2026-03-04] Simplify Dictation Flow
+
+### User Prompt
+were are we on this project? ... this is great. @[/git-add-commit-push]
+
+### Implementation Plan
+- Investigate and fix application startup/connection issues (port 8008 vs 8000).
+- Simplify the dictation flow UI by removing "style selection" to ensure transcripts are completely raw.
+- Fix Python backend module `faster_whisper` not found due to global vs virtual environment running conflict.
+- Ensure WebSocket handles raw buffer byte transmission correctly.
+
+### Walkthrough
+- Fixed the port mismatch in `App.tsx` from `8008` to `8000`.
+- Removed `formatter.py` and styling logic from `main.py` to directly stream the raw transcription.
+- Troubleshooted and corrected the server execution order to explicitly use `venv/bin/python -m uvicorn` instead of the global `uvicorn` binary.
+- Verified WebSocket data stream from the React frontend blob capturing.
