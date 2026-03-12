@@ -20,12 +20,12 @@ class NoteSaver:
         applescript = f'''
         tell application "Notes"
             tell account "iCloud"
-                if not (exists folder "Notes") then
-                    make new folder with properties {{name:"Notes"}}
+                if not (exists folder "recordings") then
+                    make new folder with properties {{name:"recordings"}}
                 end if
                 
                 -- Create a new note with the given text
-                make new note at folder "Notes" with properties {{body:"{safe_text}"}}
+                make new note at folder "recordings" with properties {{body:"{safe_text}"}}
             end tell
         end tell
         '''

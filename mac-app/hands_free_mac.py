@@ -26,13 +26,11 @@ class HandsFreeApp(rumps.App):
         self.model = WhisperModel("base", device="auto", compute_type="auto")
         print("Model Loaded!")
         
-        # Global Hotkey setup
-        # Dictate: Cmd+Shift+D
+        # Custom Listener for robust macOS keystroke detection (tracking actual modifier states)
+        # Dictate: Fn OR Cmd+Shift+D
         # Note: Cmd+Shift+N
-        self.hotkey_listener = keyboard.GlobalHotKeys({
-            '<cmd>+<shift>+d': self.on_dictate_hotkey,
-            '<cmd>+<shift>+n': self.on_note_hotkey
-        })
+        self.pressed_keys = set()
+        self.hotkey_listener = keyboard.Listener(on_press=self.on_press, on_release=self.on_release)
         self.hotkey_listener.start()
         
         self.recording_thread = None
@@ -40,7 +38,7 @@ class HandsFreeApp(rumps.App):
         self._active_mode = None # 'typing' or 'note'
         
         # Set up menu items
-        self.dictate_button = rumps.MenuItem("Start Typing Dictation (Cmd+Shift+D)", callback=self.toggle_dictate_menu)
+        self.dictate_button = rumps.MenuItem("Start Typing Dictation (Fn or Cmd+Shift+D)", callback=self.toggle_dictate_menu)
         self.note_button = rumps.MenuItem("Start Note Dictation (Cmd+Shift+N)", callback=self.toggle_note_menu)
         self.menu = [
             self.dictate_button,
@@ -50,11 +48,35 @@ class HandsFreeApp(rumps.App):
             None,
         ]
 
-    def on_dictate_hotkey(self):
-        threading.Thread(target=self.toggle_recording, args=('typing',)).start()
+    def on_press(self, key):
+        key_str = str(key)
+        self.pressed_keys.add(key_str)
+        
+        # 1. Typical Dictate: Fn key (same as Wispr Flow)
+        if key_str == 'Key.fn':
+            threading.Thread(target=self.toggle_recording, args=('typing',)).start()
+            self.pressed_keys.clear()
+            return
+            
+        # 2. Key combos mapping for Dictate (Cmd+Shift+D) and Note (Cmd+Shift+N)
+        cmd_pressed = any(k in self.pressed_keys for k in ('Key.cmd', 'Key.cmd_l', 'Key.cmd_r'))
+        shift_pressed = any(k in self.pressed_keys for k in ('Key.shift', 'Key.shift_l', 'Key.shift_r'))
+        
+        if cmd_pressed and shift_pressed:
+            char = getattr(key, 'char', None)
+            # Dictate: Cmd+Shift+D
+            if char in ('d', 'D') or key_str in ("'d'", "'D'"):
+                threading.Thread(target=self.toggle_recording, args=('typing',)).start()
+                self.pressed_keys.clear()
+            # Note: Cmd+Shift+N
+            elif char in ('n', 'N') or key_str in ("'n'", "'N'"):
+                threading.Thread(target=self.toggle_recording, args=('note',)).start()
+                self.pressed_keys.clear()
 
-    def on_note_hotkey(self):
-        threading.Thread(target=self.toggle_recording, args=('note',)).start()
+    def on_release(self, key):
+        key_str = str(key)
+        if key_str in self.pressed_keys:
+            self.pressed_keys.remove(key_str)
         
     def toggle_dictate_menu(self, sender):
         self.toggle_recording('typing')
@@ -79,11 +101,11 @@ class HandsFreeApp(rumps.App):
         self.title = f"🔴 {mode_emoji}"
         
         if mode == "typing":
-            self.dictate_button.title = "Stop Typing Dictation (Cmd+Shift+D)"
+            self.dictate_button.title = "Stop Typing Dictation (Fn or Cmd+Shift+D)"
             self.note_button.title = "Start Note Dictation (Cmd+Shift+N)" # Reset logic
         else:
             self.note_button.title = "Stop Note Dictation (Cmd+Shift+N)"
-            self.dictate_button.title = "Start Typing Dictation (Cmd+Shift+D)" # Reset logic
+            self.dictate_button.title = "Start Typing Dictation (Fn or Cmd+Shift+D)" # Reset logic
         
         self.audio_engine.start_recording()
         
@@ -110,7 +132,7 @@ class HandsFreeApp(rumps.App):
         self._active_mode = None
         
         self.title = "🎙️"
-        self.dictate_button.title = "Start Typing Dictation (Cmd+Shift+D)"
+        self.dictate_button.title = "Start Typing Dictation (Fn or Cmd+Shift+D)"
         self.note_button.title = "Start Note Dictation (Cmd+Shift+N)"
 
     def audio_pump(self):
