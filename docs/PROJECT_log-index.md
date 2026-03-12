@@ -10,6 +10,11 @@ A local-first Wispr Flow clone for macOS. High-speed dictation with smart format
 
 ## History
 
+### [2026-03-12] Multiple Dictation Modes | [log-20260312-multiple-dictation-modes](./PROJECT_log-detail.md#log-20260312-multiple-dictation-modes)
+- Replaced the single `Fn` key listener with `pynput.GlobalHotKeys` for better combo handling.
+- Implemented `Cmd+Shift+D` for standard Typing dictate mode.
+- Implemented `Cmd+Shift+N` for Note dictate mode via AppleScript and `NoteSaver`.
+
 ### [2026-03-04] Simplify Dictation Flow | [log-20260304-simplify-dictation](./PROJECT_log-detail.md#log-20260304-simplify-dictation)
 - Fixed WebSocket connection port mismatch (8008 -> 8000).
 - Simplified dictation flow by removing style formatting.
