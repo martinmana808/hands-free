@@ -26,12 +26,16 @@ class HandsFreeApp(rumps.App):
         self.model = WhisperModel("base", device="auto", compute_type="auto")
         print("Model Loaded!")
         
-        # Custom Listener for robust macOS keystroke detection (tracking actual modifier states)
-        # Dictate: Fn OR Cmd+Shift+D
-        # Note: Cmd+Shift+N
-        self.pressed_keys = set()
-        self.hotkey_listener = keyboard.Listener(on_press=self.on_press, on_release=self.on_release)
-        self.hotkey_listener.start()
+        # Global Hotkey setup for multi-key combos (robust parsing)
+        self.combo_listener = keyboard.GlobalHotKeys({
+            '<cmd>+<shift>+d': self.on_dictate_hotkey,
+            '<cmd>+<shift>+n': self.on_note_hotkey
+        })
+        self.combo_listener.start()
+        
+        # Fallback listener exclusively for the single 'Fn' key
+        self.fn_listener = keyboard.Listener(on_press=self.on_fn_press)
+        self.fn_listener.start()
         
         self.recording_thread = None
         self._is_dictating = False
@@ -48,35 +52,15 @@ class HandsFreeApp(rumps.App):
             None,
         ]
 
-    def on_press(self, key):
-        key_str = str(key)
-        self.pressed_keys.add(key_str)
-        
-        # 1. Typical Dictate: Fn key (same as Wispr Flow)
-        if key_str == 'Key.fn':
-            threading.Thread(target=self.toggle_recording, args=('typing',)).start()
-            self.pressed_keys.clear()
-            return
-            
-        # 2. Key combos mapping for Dictate (Cmd+Shift+D) and Note (Cmd+Shift+N)
-        cmd_pressed = any(k in self.pressed_keys for k in ('Key.cmd', 'Key.cmd_l', 'Key.cmd_r'))
-        shift_pressed = any(k in self.pressed_keys for k in ('Key.shift', 'Key.shift_l', 'Key.shift_r'))
-        
-        if cmd_pressed and shift_pressed:
-            char = getattr(key, 'char', None)
-            # Dictate: Cmd+Shift+D
-            if char in ('d', 'D') or key_str in ("'d'", "'D'"):
-                threading.Thread(target=self.toggle_recording, args=('typing',)).start()
-                self.pressed_keys.clear()
-            # Note: Cmd+Shift+N
-            elif char in ('n', 'N') or key_str in ("'n'", "'N'"):
-                threading.Thread(target=self.toggle_recording, args=('note',)).start()
-                self.pressed_keys.clear()
+    def on_dictate_hotkey(self):
+        threading.Thread(target=self.toggle_recording, args=('typing',)).start()
 
-    def on_release(self, key):
-        key_str = str(key)
-        if key_str in self.pressed_keys:
-            self.pressed_keys.remove(key_str)
+    def on_note_hotkey(self):
+        threading.Thread(target=self.toggle_recording, args=('note',)).start()
+
+    def on_fn_press(self, key):
+        if str(key) == 'Key.fn':
+            threading.Thread(target=self.toggle_recording, args=('typing',)).start()
         
     def toggle_dictate_menu(self, sender):
         self.toggle_recording('typing')

@@ -19,7 +19,7 @@ class NoteSaver:
         
         applescript = f'''
         tell application "Notes"
-            tell account "iCloud"
+            tell default account
                 if not (exists folder "recordings") then
                     make new folder with properties {{name:"recordings"}}
                 end if
