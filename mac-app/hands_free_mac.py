@@ -50,8 +50,8 @@ class HandsFreeApp(rumps.App):
         self._active_mode = None # 'typing' or 'note'
         
         # Set up menu items
-        self.dictate_button = rumps.MenuItem("Start Dictate", callback=self.toggle_dictate_menu)
-        self.note_button = rumps.MenuItem("Start Note", callback=self.toggle_note_menu)
+        self.dictate_button = rumps.MenuItem("Start Dictate (Ctrl+Shift+D)", callback=self.toggle_dictate_menu)
+        self.note_button = rumps.MenuItem("Start Note (Option+Shift+N)", callback=self.toggle_note_menu)
         self.menu = [
             self.dictate_button,
             self.note_button,
@@ -93,11 +93,11 @@ class HandsFreeApp(rumps.App):
         self.title = f"🔴 {mode_emoji}"
         
         if mode == "typing":
-            self.dictate_button.title = "Stop Dictate"
-            self.note_button.title = "Start Note" # Reset logic
+            self.dictate_button.title = "Stop Dictate (Ctrl+Shift+D)"
+            self.note_button.title = "Start Note (Option+Shift+N)" # Reset logic
         else:
-            self.note_button.title = "Stop Note"
-            self.dictate_button.title = "Start Dictate" # Reset logic
+            self.note_button.title = "Stop Note (Option+Shift+N)"
+            self.dictate_button.title = "Start Dictate (Ctrl+Shift+D)" # Reset logic
             
         try:
             self.audio_engine.start_recording()
@@ -136,8 +136,8 @@ class HandsFreeApp(rumps.App):
             
         self._active_mode = None
         self.title = "🎙️"
-        self.dictate_button.title = "Start Dictate"
-        self.note_button.title = "Start Note"
+        self.dictate_button.title = "Start Dictate (Ctrl+Shift+D)"
+        self.note_button.title = "Start Note (Option+Shift+N)"
 
     def audio_pump(self):
         """Continuously pulls bytes from microphone while dictating"""

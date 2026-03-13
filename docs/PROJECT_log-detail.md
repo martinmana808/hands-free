@@ -148,3 +148,16 @@ I have completely rebuilt the standalone app bundle. To test it:
 
 ---
 
+
+<a name="log-20260313-hotkey-fix-and-audio-persistence"></a>
+## [log-20260313-hotkey-fix-and-audio-persistence] Hotkey Fix and Audio Persistence
+**Request**: The user encountered stability issues (bus errors/segfaults) and hotkey detection issues on macOS. The goal was to stabilize the application and ensure hotkeys work reliably.
+
+### Walkthrough
+1. **PyAudio Persistence**: Refactored the audio engine to initialize CoreAudio streams strictly once. This prevents the C-level "bus error" caused by rapid stream destruction/re-creation on Mac.
+2. **Hotkey Redesign**: Switched from a raw Listener (which macOS blocks for low-level Fn keys) back to `GlobalHotkeys` with safe combinations: `Ctrl+Shift+D` and `Option+Shift+N`.
+3. **Apple Notes Target**: Updated the NoteSaver script to use the `default account` and save specifically into a `recordings` folder.
+4. **Visual Feedback**: Added `rumps.notification` slide-ins so the user gets real-time macOS notifications for every app state (Recording, Transcribed, Saved).
+
+---
+

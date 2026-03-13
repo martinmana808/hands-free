@@ -10,6 +10,12 @@ A local-first Wispr Flow clone for macOS. High-speed dictation with smart format
 
 ## History
 
+### [2026-03-13] Hotkey Fix and Audio Persistence | [log-20260313-hotkey-fix-and-audio-persistence](./PROJECT_log-detail.md#log-20260313-hotkey-fix-and-audio-persistence)
+- Stabilized PyAudio engine by using a single persistent CoreAudio stream, eliminating MacOS "bus errors".
+- Optimized hotkey combinations to `Ctrl+Shift+D` and `Option+Shift+N` for reliable trigger detection.
+- Updated NoteSaver to target the specific `recordings` folder in Apple Notes.
+- Integrated macOS slide-in notifications for clear user feedback.
+
 ### [2026-03-12] Multiple Dictation Modes | [log-20260312-multiple-dictation-modes](./PROJECT_log-detail.md#log-20260312-multiple-dictation-modes)
 - Replaced the single `Fn` key listener with `pynput.GlobalHotKeys` for better combo handling.
 - Implemented `Cmd+Shift+D` for standard Typing dictate mode.
