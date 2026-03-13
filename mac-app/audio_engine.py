@@ -9,8 +9,16 @@ class AudioEngine:
         self.sample_rate = sample_rate
         self.chunk_duration_ms = chunk_duration_ms
         self.chunk_size = int(self.sample_rate * self.chunk_duration_ms / 1000)
-        self.audio = None
-        self.stream = None
+        # Initialize strictly ONCE to prevent C-level segfaults on Mac bridging
+        self.audio = pyaudio.PyAudio()
+        self.stream = self.audio.open(
+            format=pyaudio.paInt16,
+            channels=1,
+            rate=self.sample_rate,
+            input=True,
+            frames_per_buffer=self.chunk_size,
+            start=False  # Do not start yet
+        )
         
         # VAD requires aggressive setting (0 to 3)
         self.vad = webrtcvad.Vad(3)
@@ -21,19 +29,8 @@ class AudioEngine:
     def start_recording(self):
         self.is_recording = True
         self.frames = []
-        if self.audio is None:
-            self.audio = pyaudio.PyAudio()
-            
-        if self.stream is not None:
-            self.stop_recording()
-            
-        self.stream = self.audio.open(
-            format=pyaudio.paInt16,
-            channels=1,
-            rate=self.sample_rate,
-            input=True,
-            frames_per_buffer=self.chunk_size
-        )
+        if self.stream.is_stopped():
+            self.stream.start_stream()
         print("Microphone started.")
         
     def record_chunk(self):
@@ -55,15 +52,11 @@ class AudioEngine:
             
     def stop_recording(self):
         self.is_recording = False
-        if self.stream:
+        if self.stream and self.stream.is_active():
             try:
-                if self.stream.is_active():
-                    self.stream.stop_stream()
-                self.stream.close()
+                self.stream.stop_stream()
             except Exception as e:
-                print(f"Error closing stream: {e}")
-            finally:
-                self.stream = None
+                print(f"Error stopping stream: {e}")
         print("Microphone stopped.")
         
     def get_wav_bytes(self):
@@ -82,6 +75,7 @@ class AudioEngine:
         
     def cleanup(self):
         self.stop_recording()
+        if self.stream:
+            self.stream.close()
         if self.audio:
             self.audio.terminate()
-            self.audio = None
