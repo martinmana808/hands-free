@@ -11,6 +11,15 @@ from array import array
 # Number of recent dictations kept in the menu for re-copying to the clipboard.
 HISTORY_SIZE = 3
 
+# --- Formatting config ---
+# Clean up the raw transcript before typing it: a free rules pass (punctuation,
+# capitalization) plus, when the local Ollama server is running, a smarter pass
+# that removes filler words / false starts. All local, no cost. Set
+# FORMATTING_ENABLED = False to type the raw transcript verbatim.
+FORMATTING_ENABLED = True
+USE_OLLAMA = True
+OLLAMA_MODEL = "llama3.2:latest"
+
 import rumps
 import Quartz
 import CoreFoundation as CF
@@ -20,6 +29,7 @@ from faster_whisper import WhisperModel
 
 from audio_engine import AudioEngine
 from keyboard_typer import KeyboardTyper
+from formatter import Formatter
 
 
 log_file = os.path.expanduser("~/.hands_free.log")
@@ -30,10 +40,10 @@ logging.basicConfig(
 )
 
 # --- Transcription config ---
-# "large-v3" is the most accurate / accent-robust model. Since latency is not a
-# priority for this tool, we favor accuracy. Swap to "distil-large-v3" or "base"
-# if the model download / per-utterance time ever becomes a problem.
-MODEL_NAME = "large-v3"
+# "large-v3-turbo" is distilled from large-v3: ~2x faster with accuracy very
+# close to the full model (keeps large-v3's accent robustness). Use "large-v3"
+# for maximum accuracy, or "distil-large-v3" (English-only) as another fast option.
+MODEL_NAME = "large-v3-turbo"
 # Force the recognition language instead of auto-detecting. Auto-detection on the
 # small model was mis-guessing the language (even "Latin"), which caused garbled
 # hallucinated output. Set to None to restore auto-detection.
@@ -54,6 +64,11 @@ class HandsFreeApp(rumps.App):
 
         self.audio_engine = AudioEngine()
         self.typer = KeyboardTyper()
+        self.formatter = (
+            Formatter(use_ollama=USE_OLLAMA, ollama_model=OLLAMA_MODEL)
+            if FORMATTING_ENABLED
+            else None
+        )
 
         logging.info(f"Loading Whisper Model ({MODEL_NAME})...")
         self.model = WhisperModel(MODEL_NAME, device="auto", compute_type="auto")
@@ -111,15 +126,13 @@ class HandsFreeApp(rumps.App):
             # rumps adds its own "Quit" item automatically.
         ]
 
-        try:
-            self.hotkey_listener_thread = threading.Thread(
-                target=self._run_hotkey_event_tap,
-                daemon=True,
-            )
-            self.hotkey_listener_thread.start()
-            logging.info("Started hotkey listener.")
-        except Exception as e:
-            logging.error(f"Failed to start hotkey listener: {e}")
+        # Start the global hotkey listener AFTER the app's run loop is running and
+        # the process is connected to the window server. Creating the CGEventTap
+        # too early (here in __init__, before app.run()) — especially under a
+        # LaunchAgent — produces a tap that receives no events until the app is
+        # first interacted with (e.g. clicking the menu bar icon). Deferring the
+        # creation onto the main run loop fixes that.
+        AppHelper.callLater(1.0, self._start_hotkey_listener)
 
     def _set_status(self, text: str):
         self.status_item.title = f"Status: {text}"
@@ -294,7 +307,11 @@ class HandsFreeApp(rumps.App):
             except Exception as e:
                 logging.debug(f"Live preview transcription error: {e}")
 
-    def _run_hotkey_event_tap(self):
+    def _start_hotkey_listener(self):
+        # Runs on the main thread (via callLater) once the app is up. Attaches
+        # the event tap to the MAIN run loop, which is already connected to the
+        # window server, so events flow immediately without needing the user to
+        # click the app first.
         mask = (
             Quartz.CGEventMaskBit(Quartz.kCGEventFlagsChanged)
             | Quartz.CGEventMaskBit(Quartz.kCGEventKeyDown)
@@ -308,7 +325,7 @@ class HandsFreeApp(rumps.App):
             None,
         )
         if tap is None:
-            logging.error("Failed to create CGEventTap for Fn hotkeys.")
+            logging.error("Failed to create CGEventTap (accessibility permission?).")
             return
 
         source = Quartz.CFMachPortCreateRunLoopSource(None, tap, 0)
@@ -319,8 +336,29 @@ class HandsFreeApp(rumps.App):
         with self._hotkey_lock:
             self._event_tap = tap
 
-        logging.info("CGEventTap hotkey listener started.")
-        CF.CFRunLoopRun()
+        try:
+            import ApplicationServices as _AS
+            trusted = bool(_AS.AXIsProcessTrusted())
+            logging.info(f"Accessibility trusted: {trusted}")
+            if not trusted:
+                # Pop the system Accessibility prompt so the user can grant it.
+                _AS.AXIsProcessTrustedWithOptions(
+                    {_AS.kAXTrustedCheckOptionPrompt: True}
+                )
+        except Exception as e:
+            logging.info(f"Accessibility check failed: {e}")
+
+        logging.info("CGEventTap hotkey listener started (main run loop).")
+        # Watchdog: if macOS ever disables the tap (timeout / heavy load),
+        # re-enable it so the hotkey never silently dies.
+        AppHelper.callLater(5.0, self._ensure_tap_enabled)
+
+    def _ensure_tap_enabled(self):
+        tap = self._event_tap
+        if tap is not None and not Quartz.CGEventTapIsEnabled(tap):
+            logging.info("Event tap was disabled — re-enabling.")
+            Quartz.CGEventTapEnable(tap, True)
+        AppHelper.callLater(5.0, self._ensure_tap_enabled)
 
     def _event_tap_callback(self, proxy, event_type, event, refcon):
         try:
@@ -653,7 +691,13 @@ class HandsFreeApp(rumps.App):
             )
 
             text = " ".join(segment.text for segment in segments).strip()
-            logging.info(f"Transcription result: '{text}'")
+            logging.info(f"Transcription result (raw): '{text}'")
+
+            if text and self.formatter is not None:
+                self._run_on_main(self._set_status, "Formatting")
+                text = self.formatter.format(text)
+                logging.info(f"Transcription result (formatted): '{text}'")
+
             self._set_last(text)
             if text:
                 self._run_on_main(self._set_preview_text, text)
