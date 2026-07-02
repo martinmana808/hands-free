@@ -3,6 +3,7 @@ import wave
 import time
 import webrtcvad
 import io
+import threading
 
 class AudioEngine:
     def __init__(self, sample_rate=16000, chunk_duration_ms=30):
@@ -25,10 +26,12 @@ class AudioEngine:
         
         self.is_recording = False
         self.frames = []
+        self._frames_lock = threading.Lock()
         
     def start_recording(self):
         self.is_recording = True
-        self.frames = []
+        with self._frames_lock:
+            self.frames = []
         if self.stream.is_stopped():
             self.stream.start_stream()
         print("Microphone started.")
@@ -41,7 +44,8 @@ class AudioEngine:
         try:
             # exception_on_overflow=False prevents crashes on slow machines dropping frames
             chunk = self.stream.read(self.chunk_size, exception_on_overflow=False)
-            self.frames.append(chunk)
+            with self._frames_lock:
+                self.frames.append(chunk)
             
             # Check VAD
             is_speech = self.vad.is_speech(chunk, self.sample_rate)
@@ -61,16 +65,18 @@ class AudioEngine:
         
     def get_wav_bytes(self):
         """Returns the accumulated audio frames as WAV bytes in memory for transcription."""
-        if not self.frames:
+        with self._frames_lock:
+            frames_snapshot = list(self.frames)
+        if not frames_snapshot:
             return b""
-            
+
         wav_io = io.BytesIO()
         with wave.open(wav_io, 'wb') as wf:
             wf.setnchannels(1)
             wf.setsampwidth(self.audio.get_sample_size(pyaudio.paInt16))
             wf.setframerate(self.sample_rate)
-            wf.writeframes(b''.join(self.frames))
-            
+            wf.writeframes(b"".join(frames_snapshot))
+
         return wav_io.getvalue()
         
     def cleanup(self):

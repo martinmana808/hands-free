@@ -12,6 +12,15 @@ server/__pycache__/
 env/
 .env
 
+# mac-app build artifacts / virtualenv (regenerable, do not track)
+mac-app/venv/
+mac-app/build/
+mac-app/dist/
+mac-app/__pycache__/
+
+# Logs
+*.log
+
 # MacOS
 .DS_Store
 

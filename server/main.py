@@ -31,39 +31,45 @@ async def websocket_endpoint(websocket: WebSocket):
     print("WebSocket connection accepted.")
     
     audio_buffer = bytearray()
+    last_sent_text = ""
     
     try:
         while True:
             data = await websocket.receive()
-            
-            # Handle binary audio buffers
-            if "bytes" in data:
-                audio_buffer.extend(data["bytes"])
-                
-                # Write accumulated buffer to a temporary webm file
-                # VLC/FFMpeg (which Whisper uses under the hood) can read concatenated WebM streams natively
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".webm") as f:
-                    f.write(audio_buffer)
-                    temp_path = f.name
-                
-                try:
-                    # Transcribe
-                    segments, info = model.transcribe(temp_path, beam_size=1)
-                    text = " ".join([segment.text for segment in segments])
-                    
-                    if text.strip():
-                        # Just return the raw text
-                        await websocket.send_json({"text": text})
-                except Exception as e:
-                    print(f"Transcription error: {e}")
-                finally:
-                    # Clean up temp file
-                    if os.path.exists(temp_path):
-                        os.remove(temp_path)
+
+            message_type = data.get("type")
+            if message_type == "websocket.disconnect":
+                break
+
+            # Ignore text/control messages and empty binary chunks
+            chunk = data.get("bytes")
+            if not chunk:
+                continue
+
+            audio_buffer.extend(chunk)
+
+            # Write accumulated buffer to a temporary webm file.
+            # FFmpeg (used under the hood by whisper) can decode concatenated WebM chunks.
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".webm") as f:
+                f.write(audio_buffer)
+                temp_path = f.name
+
+            try:
+                segments, _ = model.transcribe(temp_path, beam_size=1)
+                text = " ".join(segment.text for segment in segments).strip()
+
+                # Send only new non-empty transcript states to reduce UI churn.
+                if text and text != last_sent_text:
+                    last_sent_text = text
+                    await websocket.send_json({"text": text})
+            except Exception as e:
+                print(f"Transcription error: {e}")
+            finally:
+                if os.path.exists(temp_path):
+                    os.remove(temp_path)
 
     except WebSocketDisconnect:
         print("Client disconnected.")
     except Exception as e:
         print(f"WebSocket Error: {e}")
         traceback.print_exc()
-
