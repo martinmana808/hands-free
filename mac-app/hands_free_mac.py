@@ -20,6 +20,7 @@ from faster_whisper import WhisperModel
 
 from audio_engine import AudioEngine
 from keyboard_typer import KeyboardTyper
+from formatter import Formatter
 
 
 log_file = os.path.expanduser("~/.hands_free.log")
@@ -30,14 +31,23 @@ logging.basicConfig(
 )
 
 # --- Transcription config ---
-# "large-v3" is the most accurate / accent-robust model. Since latency is not a
-# priority for this tool, we favor accuracy. Swap to "distil-large-v3" or "base"
-# if the model download / per-utterance time ever becomes a problem.
-MODEL_NAME = "large-v3"
+# "large-v3-turbo" is distilled from large-v3: ~2x faster with accuracy very
+# close to the full model (keeps large-v3's accent robustness). Use "large-v3"
+# for maximum accuracy, or "distil-large-v3" (English-only) as another fast option.
+MODEL_NAME = "large-v3-turbo"
 # Force the recognition language instead of auto-detecting. Auto-detection on the
 # small model was mis-guessing the language (even "Latin"), which caused garbled
 # hallucinated output. Set to None to restore auto-detection.
 TRANSCRIBE_LANGUAGE = "en"
+
+# --- Formatting config ---
+# Clean up the raw transcript before typing it: a free rules pass (punctuation,
+# capitalization) plus, when the local Ollama server is running, a smarter pass
+# that removes filler words / false starts. All local, no cost. Set
+# FORMATTING_ENABLED = False to type the raw transcript verbatim.
+FORMATTING_ENABLED = True
+USE_OLLAMA = True
+OLLAMA_MODEL = "llama3.2:latest"
 
 # --- Global toggle hotkey ---
 # The Fn/Globe key is swallowed by macOS before a session event tap can see it,
@@ -54,6 +64,11 @@ class HandsFreeApp(rumps.App):
 
         self.audio_engine = AudioEngine()
         self.typer = KeyboardTyper()
+        self.formatter = (
+            Formatter(use_ollama=USE_OLLAMA, ollama_model=OLLAMA_MODEL)
+            if FORMATTING_ENABLED
+            else None
+        )
 
         logging.info(f"Loading Whisper Model ({MODEL_NAME})...")
         self.model = WhisperModel(MODEL_NAME, device="auto", compute_type="auto")
@@ -653,7 +668,13 @@ class HandsFreeApp(rumps.App):
             )
 
             text = " ".join(segment.text for segment in segments).strip()
-            logging.info(f"Transcription result: '{text}'")
+            logging.info(f"Transcription result (raw): '{text}'")
+
+            if text and self.formatter is not None:
+                self._run_on_main(self._set_status, "Formatting")
+                text = self.formatter.format(text)
+                logging.info(f"Transcription result (formatted): '{text}'")
+
             self._set_last(text)
             if text:
                 self._run_on_main(self._set_preview_text, text)
