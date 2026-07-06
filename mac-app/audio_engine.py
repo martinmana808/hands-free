@@ -5,6 +5,8 @@ import webrtcvad
 import io
 import threading
 
+import numpy as np
+
 class AudioEngine:
     def __init__(self, sample_rate=16000, chunk_duration_ms=30):
         self.sample_rate = sample_rate
@@ -63,6 +65,22 @@ class AudioEngine:
                 print(f"Error stopping stream: {e}")
         print("Microphone stopped.")
         
+    def get_audio_array(self, window_seconds=None):
+        """Returns the recorded audio as float32 samples in [-1, 1] for Whisper.
+
+        window_seconds limits the result to the most recent N seconds, so the
+        live preview can re-transcribe just the tail instead of the whole take.
+        """
+        with self._frames_lock:
+            frames = list(self.frames)
+        if not frames:
+            return None
+        if window_seconds is not None:
+            chunks = max(1, int(window_seconds * 1000 / self.chunk_duration_ms))
+            frames = frames[-chunks:]
+        pcm = np.frombuffer(b"".join(frames), dtype=np.int16)
+        return pcm.astype(np.float32) / 32768.0
+
     def get_wav_bytes(self):
         """Returns the accumulated audio frames as WAV bytes in memory for transcription."""
         with self._frames_lock:

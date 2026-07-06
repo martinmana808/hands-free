@@ -1,5 +1,5 @@
 import os
-import io
+import json
 import time
 import math
 import threading
@@ -11,12 +11,12 @@ from array import array
 # Number of recent dictations kept in the menu for re-copying to the clipboard.
 HISTORY_SIZE = 3
 
+import numpy as np
 import rumps
 import Quartz
 import CoreFoundation as CF
 import AppKit
 from PyObjCTools import AppHelper
-from faster_whisper import WhisperModel
 
 from audio_engine import AudioEngine
 from keyboard_typer import KeyboardTyper
@@ -31,14 +31,152 @@ logging.basicConfig(
 )
 
 # --- Transcription config ---
-# "large-v3-turbo" is distilled from large-v3: ~2x faster with accuracy very
-# close to the full model (keeps large-v3's accent robustness). Use "large-v3"
-# for maximum accuracy, or "distil-large-v3" (English-only) as another fast option.
-MODEL_NAME = "large-v3-turbo"
+# mlx-whisper runs Whisper on the Apple GPU: ~30x realtime on this machine vs
+# ~5x for faster-whisper on CPU. faster-whisper stays as an import fallback.
+#
+# The menu-bar slider picks one of these speed/accuracy tiers. "temperature"
+# is Whisper's retry ladder: on a low-confidence pass it re-decodes at higher
+# temperatures — more chances to get hard audio right, slower on those cases.
+ACCURACY_TIERS = [
+    {
+        "name": "Fastest",
+        "mlx_repo": "mlx-community/whisper-large-v3-turbo",
+        "fw_model": "large-v3-turbo",  # faster-whisper fallback equivalents
+        "fw_beam": 1,
+        "temperature": (0.0,),  # single greedy pass, no retries
+        "llm_format": False,  # rules-only cleanup
+    },
+    {
+        "name": "Balanced",
+        "mlx_repo": "mlx-community/whisper-large-v3-turbo",
+        "fw_model": "large-v3-turbo",
+        "fw_beam": 1,
+        "temperature": (0.0, 0.2, 0.4, 0.6, 0.8, 1.0),
+        "llm_format": True,
+    },
+    {
+        "name": "Accurate",
+        # Full large-v3: turbo was distilled from it; the full model is ~2.5x
+        # slower but measurably better on accents, homophones and mumbles.
+        "mlx_repo": "mlx-community/whisper-large-v3-mlx",
+        "fw_model": "large-v3",
+        "fw_beam": 5,
+        "temperature": (0.0, 0.2, 0.4, 0.6, 0.8, 1.0),
+        "llm_format": True,
+    },
+]
+DEFAULT_TIER_INDEX = 1
+CONFIG_PATH = os.path.expanduser("~/.hands_free_config.json")
 # Force the recognition language instead of auto-detecting. Auto-detection on the
 # small model was mis-guessing the language (even "Latin"), which caused garbled
 # hallucinated output. Set to None to restore auto-detection.
 TRANSCRIBE_LANGUAGE = "en"
+
+
+def load_saved_tier_index() -> int:
+    try:
+        with open(CONFIG_PATH) as f:
+            index = int(json.load(f).get("accuracy_tier", DEFAULT_TIER_INDEX))
+            return max(0, min(index, len(ACCURACY_TIERS) - 1))
+    except Exception:
+        return DEFAULT_TIER_INDEX
+
+
+def save_tier_index(index: int):
+    try:
+        with open(CONFIG_PATH, "w") as f:
+            json.dump({"accuracy_tier": index}, f)
+    except Exception as e:
+        logging.error(f"Failed to save config: {e}")
+# --- Live preview ---
+# Wispr-Flow style: no floating panel while listening — the text simply pastes
+# where you're focused when you release the hotkey. Set True to bring the
+# panel back (it also costs a background transcription pass every ~0.8s).
+LIVE_PREVIEW_ENABLED = False
+# The live preview only re-transcribes the most recent window of audio; the old
+# full-buffer loop made preview work grow quadratically with dictation length.
+PREVIEW_WINDOW_SECONDS = 12.0
+
+
+class Transcriber:
+    """Whisper behind one lock: mlx (Apple GPU) when available, else faster-whisper."""
+
+    def __init__(self, tier: dict):
+        self._lock = threading.Lock()
+        self._model = None
+        self._fw_model_name = None
+        self.tier = tier
+        try:
+            import mlx_whisper
+
+            self._mlx = mlx_whisper
+            self.backend = "mlx"
+        except ImportError:
+            self.backend = "faster-whisper"
+        logging.info(f"Transcription backend: {self.backend}")
+
+    def set_tier(self, tier: dict):
+        self.tier = tier
+        logging.info(f"Transcription tier set to: {tier['name']}")
+
+    def _get_fw_model(self, tier):
+        # faster-whisper keeps a loaded model per name; reload only on change.
+        from faster_whisper import WhisperModel
+
+        if self._model is None or self._fw_model_name != tier["fw_model"]:
+            self._model = WhisperModel(tier["fw_model"], device="auto", compute_type="auto")
+            self._fw_model_name = tier["fw_model"]
+        return self._model
+
+    def transcribe(self, audio: np.ndarray) -> str:
+        # Whisper hallucinates on pure silence ("Thank you." etc); mlx has no
+        # VAD pre-filter, so skip near-silent audio outright.
+        if audio is None or not len(audio) or float(np.abs(audio).max()) < 0.01:
+            return ""
+
+        tier = self.tier
+        with self._lock:
+            if self.backend == "mlx":
+                result = self._mlx.transcribe(
+                    audio,
+                    path_or_hf_repo=tier["mlx_repo"],
+                    language=TRANSCRIBE_LANGUAGE,
+                    temperature=tier["temperature"],
+                )
+                return (result.get("text") or "").strip()
+
+            segments, _ = self._get_fw_model(tier).transcribe(
+                audio,
+                beam_size=tier["fw_beam"],
+                best_of=tier["fw_beam"],
+                vad_filter=True,
+                language=TRANSCRIBE_LANGUAGE,
+            )
+            return " ".join(segment.text for segment in segments).strip()
+
+    def warm_up(self):
+        """Load the current tier's weights (downloading on first use)."""
+        started = time.time()
+        tier = self.tier
+        # Half a second of quiet noise: enough to force a real forward pass.
+        noise = (np.random.default_rng(0).standard_normal(8000) * 0.02).astype(np.float32)
+        with self._lock:
+            if self.backend == "mlx":
+                self._mlx.transcribe(
+                    noise,
+                    path_or_hf_repo=tier["mlx_repo"],
+                    language=TRANSCRIBE_LANGUAGE,
+                    temperature=tier["temperature"],
+                )
+            else:
+                list(
+                    self._get_fw_model(tier).transcribe(
+                        noise, beam_size=1, language=TRANSCRIBE_LANGUAGE
+                    )[0]
+                )
+        logging.info(
+            f"Whisper warm-up ({tier['name']}) finished in {time.time() - started:.1f}s"
+        )
 
 # --- Formatting config ---
 # Clean up the raw transcript before typing it: a free rules pass (punctuation,
@@ -70,9 +208,11 @@ class HandsFreeApp(rumps.App):
             else None
         )
 
-        logging.info(f"Loading Whisper Model ({MODEL_NAME})...")
-        self.model = WhisperModel(MODEL_NAME, device="auto", compute_type="auto")
-        logging.info("Model Loaded!")
+        self._tier_index = load_saved_tier_index()
+        tier = ACCURACY_TIERS[self._tier_index]
+        logging.info(f"Loading Whisper Model (tier: {tier['name']})...")
+        self.transcriber = Transcriber(tier)
+        threading.Thread(target=self._warm_up_models, daemon=True).start()
 
         self._fn_pressed = False
         # Modifier-only toggle chord (Control+Option) state.
@@ -108,6 +248,16 @@ class HandsFreeApp(rumps.App):
         self.last_item = rumps.MenuItem("Last: -")
         self.dictate_button = rumps.MenuItem("Start Dictate (⌃⌥)", callback=self.toggle_dictate_menu)
 
+        # Speed ⟷ accuracy slider: snaps to one tier per notch.
+        self.tier_label = rumps.MenuItem(f"Mode: {tier['name']}")
+        self.tier_slider = rumps.SliderMenuItem(
+            value=self._tier_index,
+            min_value=0,
+            max_value=len(ACCURACY_TIERS) - 1,
+            callback=self._on_tier_slider,
+            dimensions=(180, 20),
+        )
+
         # Recent-dictation history: full texts + the menu items that show them.
         self._history_texts = []
         self.history_header = rumps.MenuItem("Recent (click to copy):")
@@ -120,6 +270,10 @@ class HandsFreeApp(rumps.App):
             self.last_item,
             None,
             self.dictate_button,
+            None,
+            rumps.MenuItem("Fast ⟷ Accurate:"),
+            self.tier_slider,
+            self.tier_label,
             None,
             self.history_header,
             *self.history_items,
@@ -135,6 +289,18 @@ class HandsFreeApp(rumps.App):
             logging.info("Started hotkey listener.")
         except Exception as e:
             logging.error(f"Failed to start hotkey listener: {e}")
+
+    def _warm_up_models(self):
+        """Load Whisper and the Ollama formatter up front, not on first dictation."""
+        try:
+            self.transcriber.warm_up()
+        except Exception as e:
+            logging.error(f"Whisper warm-up failed: {e}")
+        if self.formatter is not None:
+            try:
+                self.formatter.warm()
+            except Exception as e:
+                logging.debug(f"Formatter warm-up failed: {e}")
 
     def _set_status(self, text: str):
         self.status_item.title = f"Status: {text}"
@@ -237,6 +403,8 @@ class HandsFreeApp(rumps.App):
         )
 
     def _set_preview_text(self, text: str):
+        if not LIVE_PREVIEW_ENABLED:
+            return
         if self._preview_panel is None or self._preview_label is None:
             self._ensure_preview_panel()
 
@@ -258,6 +426,8 @@ class HandsFreeApp(rumps.App):
         self._live_preview_text = ""
         self._last_preview_audio_size = 0
         self._last_speech_at = time.time()
+        if not LIVE_PREVIEW_ENABLED:
+            return
         self._live_preview_stop.clear()
         self._run_on_main(self._set_preview_text, "Listening…")
 
@@ -268,41 +438,43 @@ class HandsFreeApp(rumps.App):
         self._live_preview_thread.start()
 
     def _stop_live_preview(self, hide_panel: bool):
+        # No join: the thread exits on its own, checks the stop event before
+        # touching the panel, and the Transcriber lock already serializes any
+        # in-flight preview pass with the final one. Blocking here used to add
+        # ~0.4s to every dictation.
         self._live_preview_stop.set()
-        preview_thread = self._live_preview_thread
         self._live_preview_thread = None
-        if preview_thread and preview_thread.is_alive():
-            preview_thread.join(timeout=0.4)
         if hide_panel:
             self._run_on_main(self._hide_preview_panel)
 
     def _live_preview_loop(self):
+        sample_rate = self.audio_engine.sample_rate
         while not self._live_preview_stop.wait(0.8):
             with self._state_lock:
                 if not self._is_dictating:
                     return
 
-            wav_bytes = self.audio_engine.get_wav_bytes()
-            if len(wav_bytes) < 32000:
+            audio = self.audio_engine.get_audio_array()
+            if audio is None or len(audio) < sample_rate:
                 continue
 
-            growth = len(wav_bytes) - self._last_preview_audio_size
-            if growth < 12000 and self._live_preview_text:
+            growth = len(audio) - self._last_preview_audio_size
+            if growth < int(0.4 * sample_rate) and self._live_preview_text:
                 continue
 
             if time.time() - self._last_speech_at > 2.5 and self._live_preview_text:
                 continue
 
-            self._last_preview_audio_size = len(wav_bytes)
+            self._last_preview_audio_size = len(audio)
             try:
-                segments, _ = self.model.transcribe(
-                    io.BytesIO(wav_bytes),
-                    beam_size=1,
-                    best_of=1,
-                    vad_filter=True,
-                    language=TRANSCRIBE_LANGUAGE,
-                )
-                text = " ".join(segment.text for segment in segments).strip()
+                # Only the most recent window: keeps preview cost constant no
+                # matter how long the dictation runs.
+                tail = audio[-int(PREVIEW_WINDOW_SECONDS * sample_rate):]
+                text = self.transcriber.transcribe(tail)
+                if len(audio) > len(tail) and text:
+                    text = "… " + text
+                if self._live_preview_stop.is_set():
+                    return
                 if text and text != self._live_preview_text:
                     self._live_preview_text = text
                     self._run_on_main(self._set_preview_text, text)
@@ -484,6 +656,29 @@ class HandsFreeApp(rumps.App):
 
         threading.Thread(target=run, daemon=True).start()
 
+    def _on_tier_slider(self, sender):
+        index = int(round(sender.value))
+        sender.value = index  # snap the thumb to the notch
+        if index == self._tier_index:
+            return
+
+        self._tier_index = index
+        tier = ACCURACY_TIERS[index]
+        self.tier_label.title = f"Mode: {tier['name']}"
+        save_tier_index(index)
+        self.transcriber.set_tier(tier)
+
+        # Load the new tier's weights now, not on the next dictation.
+        def warm():
+            self._run_on_main(self._set_status, f"Loading {tier['name']} model…")
+            try:
+                self.transcriber.warm_up()
+            except Exception as e:
+                logging.error(f"Tier warm-up failed: {e}")
+            self._run_on_main(self._set_status, "Idle")
+
+        threading.Thread(target=warm, daemon=True).start()
+
     def toggle_dictate_menu(self, sender):
         self.toggle_recording("typing")
 
@@ -649,31 +844,31 @@ class HandsFreeApp(rumps.App):
             logging.error(f"Failed to copy history item: {e}")
 
     def process_transcription(self, mode: str):
-        wav_bytes = self.audio_engine.get_wav_bytes()
-        if not wav_bytes:
+        audio = self.audio_engine.get_audio_array()
+        if audio is None or not len(audio):
             logging.info("No audio recorded.")
             self._set_last("")
             return
 
-        logging.info(f"Audio recorded: {len(wav_bytes)} bytes")
-        audio_io = io.BytesIO(wav_bytes)
+        duration = len(audio) / self.audio_engine.sample_rate
+        logging.info(f"Audio recorded: {duration:.1f}s")
 
         try:
-            segments, _ = self.model.transcribe(
-                audio_io,
-                beam_size=5,
-                best_of=5,
-                vad_filter=True,
-                language=TRANSCRIBE_LANGUAGE,
+            started = time.time()
+            text = self.transcriber.transcribe(audio)
+            logging.info(
+                f"Transcription result in {time.time() - started:.1f}s (raw): '{text}'"
             )
-
-            text = " ".join(segment.text for segment in segments).strip()
-            logging.info(f"Transcription result (raw): '{text}'")
 
             if text and self.formatter is not None:
                 self._run_on_main(self._set_status, "Formatting")
-                text = self.formatter.format(text)
-                logging.info(f"Transcription result (formatted): '{text}'")
+                started = time.time()
+                # The Fastest tier skips the LLM pass; rules cleanup always runs.
+                use_llm = ACCURACY_TIERS[self._tier_index]["llm_format"]
+                text = self.formatter.format(text, use_llm=use_llm)
+                logging.info(
+                    f"Transcription result in {time.time() - started:.1f}s (formatted): '{text}'"
+                )
 
             self._set_last(text)
             if text:
@@ -681,8 +876,9 @@ class HandsFreeApp(rumps.App):
                 self._add_to_history(text)
 
             if text and mode == "typing":
+                started = time.time()
                 self.typer.type_text(text, target_bundle_id=self._target_bundle_id)
-                logging.info("Successfully inserted text.")
+                logging.info(f"Successfully inserted text in {time.time() - started:.2f}s.")
         except Exception as e:
             logging.error(f"Transcription exception: {e}")
 
