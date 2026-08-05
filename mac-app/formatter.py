@@ -150,6 +150,28 @@ def _preserves_wording(candidate: str, source: str) -> bool:
     return invented <= max(2, len(candidate_words) // 20)
 
 
+# A cleanup deletes fillers and false starts, so the output is a little shorter
+# than the input — but it must never drop whole passages. Without a floor, a
+# refusal ("I can't help with that.") or a generation truncated by the token
+# limit sails past _preserves_wording, because every word it does contain
+# appears somewhere in the source. That silently replaces the dictation.
+MIN_CONTENT_RETAINED = 0.75
+
+
+def _retains_content(candidate: str, source: str) -> bool:
+    """Reject candidates that discard most of the dictation."""
+    source_words = re.findall(r"[a-z0-9']+", source.lower())
+    if not source_words:
+        return True
+    candidate_words = Counter(re.findall(r"[a-z0-9']+", candidate.lower()))
+    retained = 0
+    for word in source_words:
+        if candidate_words[word] > 0:
+            candidate_words[word] -= 1
+            retained += 1
+    return retained >= len(source_words) * MIN_CONTENT_RETAINED
+
+
 # At or below this many words, the rules pass alone is good enough and the LLM
 # round-trip isn't worth its latency on quick commands like "yes, do that".
 OLLAMA_MIN_WORDS = 9
@@ -176,7 +198,11 @@ class Formatter:
         if use_llm and self.ollama is not None and len(cleaned.split()) >= OLLAMA_MIN_WORDS:
             try:
                 smart = _strip_preamble(self.ollama.format(cleaned))
-                if _looks_like_cleanup(smart, cleaned) and _preserves_wording(smart, cleaned):
+                if (
+                    _looks_like_cleanup(smart, cleaned)
+                    and _preserves_wording(smart, cleaned)
+                    and _retains_content(smart, cleaned)
+                ):
                     return smart
                 logger.info("Ollama output rejected (rewrote too much); using rules cleanup.")
             except Exception as e:
