@@ -19,8 +19,9 @@ import AppKit
 from PyObjCTools import AppHelper
 
 from audio_engine import AudioEngine
-from keyboard_typer import KeyboardTyper
+from keyboard_typer import KeyboardTyper, PasteBlocked
 from formatter import Formatter
+import permissions
 
 
 log_file = os.path.expanduser("~/.hands_free.log")
@@ -268,6 +269,12 @@ class HandsFreeApp(rumps.App):
             rumps.MenuItem(f"{i + 1}. —") for i in range(HISTORY_SIZE)
         ]
 
+        # Only shown while a permission is missing — dictation is dead without
+        # them, and both fail silently, so the failure has to be visible here.
+        self.permissions_item = rumps.MenuItem(
+            self.PERMISSIONS_ITEM_TITLE, callback=self.fix_permissions
+        )
+
         self.menu = [
             self.status_item,
             self.last_item,
@@ -292,6 +299,60 @@ class HandsFreeApp(rumps.App):
             logging.info("Started hotkey listener.")
         except Exception as e:
             logging.error(f"Failed to start hotkey listener: {e}")
+
+        self._permissions_missing = permissions.log_status()
+        self._permissions_item_shown = False
+        self._refresh_permissions()
+        # Permissions are granted outside the app, so poll to notice it happening.
+        self._permission_timer = rumps.Timer(self._on_permission_timer, 3)
+        self._permission_timer.start()
+
+    # Fixed title: rumps keys menu items by title, so renaming this item would
+    # make it impossible to remove again.
+    PERMISSIONS_ITEM_TITLE = "⚠️ Fix permissions…"
+
+    def _refresh_permissions(self) -> list:
+        """Surface missing permissions in the menu bar; return what's missing."""
+        gaps = permissions.missing()
+
+        try:
+            if gaps and not self._permissions_item_shown:
+                self.menu.insert_before(self.status_item.title, self.permissions_item)
+                self._permissions_item_shown = True
+            elif not gaps and self._permissions_item_shown:
+                del self.menu[self.PERMISSIONS_ITEM_TITLE]
+                self._permissions_item_shown = False
+        except Exception as e:
+            logging.debug(f"Could not update permissions menu item: {e}")
+
+        if gaps:
+            self._set_status(f"Needs {' + '.join(gaps)}")
+            self.title = "⚠️"
+        return gaps
+
+    def _on_permission_timer(self, _timer):
+        was_missing = bool(self._permissions_missing)
+        gaps = self._refresh_permissions()
+        self._permissions_missing = gaps
+        if was_missing and not gaps:
+            logging.info("All permissions granted; dictation is ready.")
+            self.title = "🎙️"
+            self._set_status("Idle")
+
+    def fix_permissions(self, _sender):
+        """Prompt for, then open System Settings at, the first missing grant."""
+        gaps = permissions.missing()
+        if not gaps:
+            rumps.alert("Hands Free", "All permissions are already granted.")
+            return
+        target = gaps[0]
+        permissions.request(target)
+        permissions.open_settings(target)
+        rumps.alert(
+            "Hands Free",
+            f"Enable “Hands Free” under {target}, then return here.\n\n"
+            "The menu bar icon returns to 🎙️ once every permission is granted.",
+        )
 
     def _warm_up_models(self):
         """Load Whisper and the Ollama formatter up front, not on first dictation."""
@@ -883,8 +944,22 @@ class HandsFreeApp(rumps.App):
 
             if text and mode == "typing":
                 started = time.time()
-                self.typer.type_text(text, target_bundle_id=self._target_bundle_id)
-                logging.info(f"Successfully inserted text in {time.time() - started:.2f}s.")
+                try:
+                    self.typer.type_text(text, target_bundle_id=self._target_bundle_id)
+                    logging.info(
+                        f"Successfully inserted text in {time.time() - started:.2f}s."
+                    )
+                except PasteBlocked:
+                    # The text is already on the clipboard, so nothing is lost —
+                    # but the user has to be told, not left staring at nothing.
+                    self._run_on_main(self._refresh_permissions)
+                    self._run_on_main(
+                        rumps.notification,
+                        "Hands Free",
+                        "Couldn't paste — permission missing",
+                        "Your text is on the clipboard: press Cmd+V. "
+                        "Use “Fix permissions…” in the menu bar to fix this.",
+                    )
         except Exception as e:
             logging.error(f"Transcription exception: {e}")
 

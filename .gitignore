@@ -14,6 +14,8 @@ env/
 
 # mac-app build artifacts / virtualenv (regenerable, do not track)
 mac-app/venv/
+# Code-signing private key — never commit
+mac-app/packaging/identity/
 mac-app/build/
 mac-app/dist/
 mac-app/__pycache__/

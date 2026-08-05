@@ -5,7 +5,13 @@ import logging
 import AppKit
 from pynput.keyboard import Controller, Key
 
+from permissions import has_accessibility
+
 logger = logging.getLogger(__name__)
+
+
+class PasteBlocked(RuntimeError):
+    """Raised when macOS permissions prevent inserting text into another app."""
 
 class KeyboardTyper:
     def __init__(self):
@@ -94,10 +100,25 @@ class KeyboardTyper:
                 logger.info("Text insert method: applescript-paste")
                 return
             except Exception as e:
+                # Without Accessibility, System Events refuses the keystroke and
+                # the pynput fallback below is silently swallowed too. Say so:
+                # claiming success here is what hid this failure for weeks.
+                if not has_accessibility():
+                    logger.error(
+                        "Paste failed: Accessibility permission is not granted, so "
+                        "Hands Free cannot type into other apps. The text is on "
+                        "your clipboard — press Cmd+V. Grant it via the menu bar "
+                        "item “Fix permissions…”."
+                    )
+                    raise PasteBlocked("Accessibility permission not granted") from e
+
                 logger.debug("AppleScript paste failed: %s", e)
                 self._paste()
                 logger.info("Text insert method: key-paste")
                 return
+        except PasteBlocked:
+            # Raw typing needs the same permission, so retrying is pointless.
+            raise
         except Exception as e:
             logger.debug("Paste pipeline failed, falling back to raw typing: %s", e)
             # 3) Last resort: character typing.
