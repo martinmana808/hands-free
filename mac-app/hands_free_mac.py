@@ -184,7 +184,10 @@ class Transcriber:
 # that removes filler words / false starts. All local, no cost. Set
 # FORMATTING_ENABLED = False to type the raw transcript verbatim.
 FORMATTING_ENABLED = True
-USE_OLLAMA = True
+# Cleanup backend: "mlx" runs a small model in-process (self-contained, what the
+# packaged app ships), "ollama" uses a local Ollama server, "rules" disables the
+# LLM pass entirely.
+CLEANUP_BACKEND = os.environ.get("HANDS_FREE_CLEANUP_BACKEND", "mlx")
 OLLAMA_MODEL = "llama3.2:latest"
 
 # --- Global toggle hotkey ---
@@ -203,7 +206,7 @@ class HandsFreeApp(rumps.App):
         self.audio_engine = AudioEngine()
         self.typer = KeyboardTyper()
         self.formatter = (
-            Formatter(use_ollama=USE_OLLAMA, ollama_model=OLLAMA_MODEL)
+            Formatter(backend=CLEANUP_BACKEND, ollama_model=OLLAMA_MODEL)
             if FORMATTING_ENABLED
             else None
         )
