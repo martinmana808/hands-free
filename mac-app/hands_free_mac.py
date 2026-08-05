@@ -690,7 +690,10 @@ class HandsFreeApp(rumps.App):
             currently_dictating = self._is_dictating
 
         if currently_dictating:
-            self.stop_dictation()
+            # Off the main thread: stop_dictation transcribes synchronously, and
+            # doing that on the run loop freezes the UI so the "🤔" title never
+            # renders. Matches how the hotkey path stops.
+            threading.Thread(target=self.stop_dictation, daemon=True).start()
         else:
             self.start_dictation(mode)
 
