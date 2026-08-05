@@ -29,10 +29,14 @@ cache (`~/.cache/huggingface`):
 
 Everything runs on-device. The download is the only network access.
 
-Then grant two permissions in **System Settings → Privacy & Security**:
+Then grant three permissions in **System Settings → Privacy & Security**:
 
+- **Microphone** — prompted automatically on first launch; just click Allow.
 - **Input Monitoring** — lets the Control+Option hotkey work from any app.
 - **Accessibility** — lets dictated text paste into the focused app.
+
+Input Monitoring and Accessibility have to be ticked by hand; macOS offers no
+prompt for them.
 
 The menu bar shows ⚠️ and a **"Fix permissions…"** item until both are granted;
 it returns to 🎙️ on its own once they are. macOS cannot grant these

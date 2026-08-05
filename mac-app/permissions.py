@@ -20,11 +20,47 @@ logger = logging.getLogger(__name__)
 
 ACCESSIBILITY = "Accessibility"
 INPUT_MONITORING = "Input Monitoring"
+MICROPHONE = "Microphone"
 
 _SETTINGS_PANE = {
     ACCESSIBILITY: "Privacy_Accessibility",
     INPUT_MONITORING: "Privacy_ListenEvent",
+    MICROPHONE: "Privacy_Microphone",
 }
+
+_AV_AUTHORIZED = 3  # AVAuthorizationStatusAuthorized
+
+
+def has_microphone() -> bool:
+    """Can we record audio?
+
+    Checked separately because opening the input stream blocks inside CoreAudio
+    until this is resolved — which would otherwise hang startup on a machine
+    that has not granted it.
+    """
+    try:
+        import AVFoundation
+
+        status = AVFoundation.AVCaptureDevice.authorizationStatusForMediaType_(
+            AVFoundation.AVMediaTypeAudio
+        )
+        return status == _AV_AUTHORIZED
+    except Exception as e:
+        # If the check itself fails, assume granted rather than blocking use.
+        logger.debug("Microphone permission check unavailable: %s", e)
+        return True
+
+
+def request_microphone():
+    """Trigger the microphone prompt without blocking the caller."""
+    try:
+        import AVFoundation
+
+        AVFoundation.AVCaptureDevice.requestAccessForMediaType_completionHandler_(
+            AVFoundation.AVMediaTypeAudio, lambda granted: None
+        )
+    except Exception as e:
+        logger.debug("Could not request microphone access: %s", e)
 
 
 def has_accessibility() -> bool:
@@ -40,6 +76,8 @@ def has_input_monitoring() -> bool:
 def missing() -> list[str]:
     """Names of the permissions that are not granted, in setup order."""
     gaps = []
+    if not has_microphone():
+        gaps.append(MICROPHONE)
     if not has_input_monitoring():
         gaps.append(INPUT_MONITORING)
     if not has_accessibility():
@@ -58,6 +96,8 @@ def request(permission: str):
             Quartz.CGRequestListenEventAccess()
         elif permission == ACCESSIBILITY:
             AXIsProcessTrustedWithOptions({"AXTrustedCheckOptionPrompt": True})
+        elif permission == MICROPHONE:
+            request_microphone()
     except Exception as e:
         logger.debug("Permission request for %s failed: %s", permission, e)
 

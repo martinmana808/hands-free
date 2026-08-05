@@ -302,6 +302,10 @@ class HandsFreeApp(rumps.App):
 
         self._permissions_missing = permissions.log_status()
         self._permissions_item_shown = False
+        # Ask for the microphone up front. The prompt is asynchronous, unlike
+        # opening the input stream, which blocks in CoreAudio until it's answered.
+        if permissions.MICROPHONE in self._permissions_missing:
+            permissions.request_microphone()
         self._refresh_permissions()
         # Permissions are granted outside the app, so poll to notice it happening.
         self._permission_timer = rumps.Timer(self._on_permission_timer, 3)

@@ -12,25 +12,38 @@ class AudioEngine:
         self.sample_rate = sample_rate
         self.chunk_duration_ms = chunk_duration_ms
         self.chunk_size = int(self.sample_rate * self.chunk_duration_ms / 1000)
-        # Initialize strictly ONCE to prevent C-level segfaults on Mac bridging
         self.audio = pyaudio.PyAudio()
-        self.stream = self.audio.open(
-            format=pyaudio.paInt16,
-            channels=1,
-            rate=self.sample_rate,
-            input=True,
-            frames_per_buffer=self.chunk_size,
-            start=False  # Do not start yet
-        )
-        
+        # The stream is opened on first use, not here: opening it blocks inside
+        # CoreAudio until macOS resolves the microphone permission, and on a
+        # machine that has not granted it yet that hangs app startup before the
+        # menu bar even appears. Still opened strictly ONCE (see _ensure_stream)
+        # to avoid C-level segfaults on the Mac PortAudio bridge.
+        self.stream = None
+        self._stream_lock = threading.Lock()
+
         # VAD requires aggressive setting (0 to 3)
         self.vad = webrtcvad.Vad(3)
-        
+
         self.is_recording = False
         self.frames = []
         self._frames_lock = threading.Lock()
-        
+
+    def _ensure_stream(self):
+        """Open the input stream once, on first recording."""
+        with self._stream_lock:
+            if self.stream is None:
+                self.stream = self.audio.open(
+                    format=pyaudio.paInt16,
+                    channels=1,
+                    rate=self.sample_rate,
+                    input=True,
+                    frames_per_buffer=self.chunk_size,
+                    start=False,  # Do not start yet
+                )
+            return self.stream
+
     def start_recording(self):
+        self._ensure_stream()
         self.is_recording = True
         with self._frames_lock:
             self.frames = []
