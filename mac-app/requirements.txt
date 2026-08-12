@@ -33,6 +33,7 @@ pyobjc-framework-AVFoundation==12.1  # microphone permission check
 pyobjc-framework-Cocoa==12.1
 pyobjc-framework-CoreText==12.1
 pyobjc-framework-Quartz==12.1
+pyobjc-framework-ServiceManagement==12.1  # start-at-login
 PyYAML==6.0.3
 rich==14.3.3
 rumps==0.4.0

@@ -25,6 +25,7 @@ hiddenimports += [
     "pynput.mouse._darwin",
     "webrtcvad",
     "AVFoundation",  # microphone permission check
+    "ServiceManagement",  # start-at-login
 ]
 
 a = Analysis(

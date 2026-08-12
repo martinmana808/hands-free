@@ -22,6 +22,7 @@ from audio_engine import AudioEngine
 from keyboard_typer import KeyboardTyper, PasteBlocked
 from formatter import Formatter
 import permissions
+import login_item
 
 
 log_file = os.path.expanduser("~/.hands_free.log")
@@ -275,6 +276,21 @@ class HandsFreeApp(rumps.App):
             self.PERMISSIONS_ITEM_TITLE, callback=self.fix_permissions
         )
 
+        # Only meaningful from the packaged .app; greyed out when running from
+        # source, where there is no bundle for macOS to register.
+        self.login_item = rumps.MenuItem("Start at Login", callback=self.toggle_login)
+        if login_item.available():
+            self.login_item.state = login_item.is_enabled()
+            logging.info(
+                "Start at login: %s",
+                "enabled" if login_item.is_enabled() else "off",
+            )
+        else:
+            self.login_item.set_callback(None)
+            logging.info(
+                "Start at login unavailable (running from source, not the .app)."
+            )
+
         self.menu = [
             self.status_item,
             self.last_item,
@@ -287,6 +303,8 @@ class HandsFreeApp(rumps.App):
             None,
             self.history_header,
             *self.history_items,
+            None,
+            self.login_item,
             # rumps adds its own "Quit" item automatically.
         ]
 
@@ -342,6 +360,20 @@ class HandsFreeApp(rumps.App):
             logging.info("All permissions granted; dictation is ready.")
             self.title = "🎙️"
             self._set_status("Idle")
+
+    def toggle_login(self, sender):
+        """Turn launch-at-login on or off."""
+        if sender.state:
+            ok, message = login_item.disable()
+        else:
+            ok, message = login_item.enable()
+
+        if ok:
+            sender.state = not sender.state
+        else:
+            # Leave the checkbox showing the real state, not the attempted one.
+            sender.state = login_item.is_enabled()
+            rumps.alert("Hands Free", f"Could not change start-at-login.\n\n{message}")
 
     def fix_permissions(self, _sender):
         """Prompt for, then open System Settings at, the first missing grant."""

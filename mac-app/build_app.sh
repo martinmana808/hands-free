@@ -10,6 +10,9 @@ cd "$(dirname "$0")"
 
 CERT_NAME="Hands Free Signing"
 KEYCHAIN="hands-free-signing.keychain-db"
+# Not your Mac password: this keychain is created by make_cert.sh purely to hold
+# the signing key, and exists so signing never interrupts a build with a prompt.
+KEYCHAIN_PASSWORD="hands-free"
 APP="dist/Hands Free.app"
 
 if [ ! -x ./venv/bin/python ]; then
@@ -37,6 +40,10 @@ rm -rf build dist
 # 3. Sign. --deep covers the many bundled dylibs; the outer signature is what
 #    TCC matches against.
 echo "==> Signing"
+# Keychains re-lock on reboot; without this, codesign pops a password dialog
+# mid-build asking for a password that is NOT the user's login password.
+security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+security set-keychain-settings "$KEYCHAIN"  # and don't auto-lock again
 codesign --force --deep --sign "$CERT_NAME" --keychain "$KEYCHAIN" "$APP"
 
 # 4. Verify, so a broken build fails here rather than silently at dictation time.

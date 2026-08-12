@@ -42,6 +42,20 @@ The menu bar shows ⚠️ and a **"Fix permissions…"** item until both are gra
 it returns to 🎙️ on its own once they are. macOS cannot grant these
 programmatically — every app has to be ticked by hand once.
 
+## Start at login
+
+Menu bar → **Start at Login** (a checkbox). It registers the app as a normal
+macOS login item, so macOS launches it through LaunchServices and it keeps its
+own code-signature identity — and therefore its permissions.
+
+Do **not** replace this with a LaunchAgent that runs the executable directly.
+Launching the interpreter that way is what historically broke the hotkey: the
+process presented to macOS as "python3.13" and could not hold Input Monitoring.
+
+The code prefers `SMAppService` and falls back to a System Events login item.
+In practice the fallback is what runs: `SMAppService` reports `notFound` for
+self-signed apps, since it expects a Developer ID signature.
+
 ## Why the app is signed
 
 macOS records permission grants against an app's **code signature**, not its
