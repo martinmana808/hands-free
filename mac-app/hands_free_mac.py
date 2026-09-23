@@ -330,6 +330,9 @@ class HandsFreeApp(rumps.App):
         # Permissions are granted outside the app, so poll to notice it happening.
         self._permission_timer = rumps.Timer(self._on_permission_timer, 3)
         self._permission_timer.start()
+        # Weekly push of the transcripts file; the check itself is hourly.
+        self._transcript_sync_timer = rumps.Timer(self._on_transcript_sync_timer, 3600)
+        self._transcript_sync_timer.start()
 
     # Fixed title: rumps keys menu items by title, so renaming this item would
     # make it impossible to remove again.
@@ -932,6 +935,10 @@ class HandsFreeApp(rumps.App):
             else:
                 item.title = f"{i + 1}. —"
                 item.set_callback(None)
+
+    def _on_transcript_sync_timer(self, _timer):
+        # Git and the network are slow — keep them off the main thread.
+        threading.Thread(target=transcript_log.sync_if_due, daemon=True).start()
 
     def open_transcripts(self, _sender):
         transcript_log.open_in_editor()
