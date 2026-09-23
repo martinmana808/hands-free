@@ -23,6 +23,7 @@ from keyboard_typer import KeyboardTyper, PasteBlocked
 from formatter import Formatter
 import permissions
 import login_item
+import transcript_log
 
 
 log_file = os.path.expanduser("~/.hands_free.log")
@@ -303,6 +304,7 @@ class HandsFreeApp(rumps.App):
             None,
             self.history_header,
             *self.history_items,
+            rumps.MenuItem("Open All Transcripts…", callback=self.open_transcripts),
             None,
             self.login_item,
             # rumps adds its own "Quit" item automatically.
@@ -931,6 +933,9 @@ class HandsFreeApp(rumps.App):
                 item.title = f"{i + 1}. —"
                 item.set_callback(None)
 
+    def open_transcripts(self, _sender):
+        transcript_log.open_in_editor()
+
     def copy_history_item(self, sender):
         idx = next(
             (i for i, item in enumerate(self.history_items) if item is sender),
@@ -977,6 +982,7 @@ class HandsFreeApp(rumps.App):
             if text:
                 self._run_on_main(self._set_preview_text, text)
                 self._add_to_history(text)
+                transcript_log.append(text)
 
             if text and mode == "typing":
                 started = time.time()
