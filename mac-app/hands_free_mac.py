@@ -23,6 +23,8 @@ from keyboard_typer import KeyboardTyper, PasteBlocked
 from formatter import Formatter
 import permissions
 import login_item
+import menu_icon
+import start_sound
 import transcript_log
 
 
@@ -46,7 +48,9 @@ ACCURACY_TIERS = [
         "mlx_repo": "mlx-community/whisper-large-v3-turbo",
         "fw_model": "large-v3-turbo",  # faster-whisper fallback equivalents
         "fw_beam": 1,
-        "temperature": (0.0,),  # single greedy pass, no retries
+        # Greedy pass; the one retry fires only when a segment fails Whisper's
+        # checks (e.g. a repetition loop), so normal dictations pay nothing.
+        "temperature": (0.0, 0.4),
         "llm_format": False,  # rules-only cleanup
     },
     {
@@ -74,6 +78,37 @@ CONFIG_PATH = os.path.expanduser("~/.hands_free_config.json")
 # small model was mis-guessing the language (even "Latin"), which caused garbled
 # hallucinated output. Set to None to restore auto-detection.
 TRANSCRIBE_LANGUAGE = "en"
+
+
+def collapse_repeats(text: str, min_repeats: int = 3, max_phrase: int = 15) -> str:
+    """Collapse a phrase repeated back to back 3+ times down to one copy.
+
+    Whisper's classic failure: it gets stuck and emits the same sentence over
+    and over ("The code is not available to you" x7). Nobody dictates a
+    multi-word phrase three times in a row, so this only ever deletes.
+    """
+    words = text.split()
+    key = [w.strip(".,!?;:\"'").lower() for w in words]
+    out = []
+    i = 0
+    while i < len(words):
+        # Shortest first: the true repeating unit, not a multiple of it.
+        for n in range(2, max_phrase + 1):
+            phrase = key[i:i + n]
+            if len(phrase) < n:
+                continue
+            reps = 1
+            while key[i + reps * n:i + (reps + 1) * n] == phrase:
+                reps += 1
+            if reps >= min_repeats:
+                # Keep the last copy: it carries the sentence's closing punctuation.
+                i += reps * n
+                out.extend(words[i - n:i])
+                break
+        else:
+            out.append(words[i])
+            i += 1
+    return " ".join(out)
 
 
 def load_saved_tier_index() -> int:
@@ -145,8 +180,11 @@ class Transcriber:
                     path_or_hf_repo=tier["mlx_repo"],
                     language=TRANSCRIBE_LANGUAGE,
                     temperature=tier["temperature"],
+                    # Carrying the previous window's text into the next is what
+                    # lets one bad segment loop for the rest of a long dictation.
+                    condition_on_previous_text=False,
                 )
-                return (result.get("text") or "").strip()
+                return self._clean(result.get("text") or "")
 
             segments, _ = self._get_fw_model(tier).transcribe(
                 audio,
@@ -154,8 +192,17 @@ class Transcriber:
                 best_of=tier["fw_beam"],
                 vad_filter=True,
                 language=TRANSCRIBE_LANGUAGE,
+                condition_on_previous_text=False,
             )
-            return " ".join(segment.text for segment in segments).strip()
+            return self._clean(" ".join(segment.text for segment in segments))
+
+    @staticmethod
+    def _clean(text: str) -> str:
+        text = text.strip()
+        collapsed = collapse_repeats(text)
+        if collapsed != text:
+            logging.info("Collapsed a repeated-phrase loop in the transcript.")
+        return collapsed
 
     def warm_up(self):
         """Load the current tier's weights (downloading on first use)."""
@@ -237,7 +284,14 @@ class HandsFreeApp(rumps.App):
         self._target_bundle_id = None
         self._state_lock = threading.Lock()
         self._last_wave_update = 0.0
-        self._wave_chars = "▁▂▃▄▅▆▇█"
+        self._meter_level = 0.0
+        # What the menu-bar icon shows: "idle", "listening", "thinking" or
+        # "warning". Written from any thread; only drawn on the main thread.
+        self._icon_state = "idle"
+        self._icon_step = 0
+        self._icon_width_fixed = False
+        self._thinking_timer = None
+        self._thinking_frame = 0
         self._last_speech_at = 0.0
 
         self._live_preview_text = ""
@@ -333,6 +387,7 @@ class HandsFreeApp(rumps.App):
         # Weekly push of the transcripts file; the check itself is hourly.
         self._transcript_sync_timer = rumps.Timer(self._on_transcript_sync_timer, 3600)
         self._transcript_sync_timer.start()
+        self._run_on_main(self._render_icon)
 
     # Fixed title: rumps keys menu items by title, so renaming this item would
     # make it impossible to remove again.
@@ -354,7 +409,7 @@ class HandsFreeApp(rumps.App):
 
         if gaps:
             self._set_status(f"Needs {' + '.join(gaps)}")
-            self.title = "⚠️"
+            self._set_icon("warning")
         return gaps
 
     def _on_permission_timer(self, _timer):
@@ -363,7 +418,7 @@ class HandsFreeApp(rumps.App):
         self._permissions_missing = gaps
         if was_missing and not gaps:
             logging.info("All permissions granted; dictation is ready.")
-            self.title = "🎙️"
+            self._set_icon("idle")
             self._set_status("Idle")
 
     def toggle_login(self, sender):
@@ -392,7 +447,7 @@ class HandsFreeApp(rumps.App):
         rumps.alert(
             "Hands Free",
             f"Enable “Hands Free” under {target}, then return here.\n\n"
-            "The menu bar icon returns to 🎙️ once every permission is granted.",
+            "The menu bar icon returns to the microphone once every permission is granted.",
         )
 
     def _warm_up_models(self):
@@ -422,20 +477,100 @@ class HandsFreeApp(rumps.App):
             preview = preview[:57] + "..."
         self.last_item.title = f"Last: {preview}"
 
+    def _set_icon(self, state: str):
+        self._icon_state = state
+        self._run_on_main(self._render_icon)
+
+    def _render_icon(self):
+        # Main thread only. Draws whatever the current state is, so a stale
+        # meter update queued just before stopping can't overwrite "thinking".
+        status_item = getattr(getattr(self, "_nsapp", None), "nsstatusitem", None)
+        if status_item is None:
+            return  # event loop not running yet; the startup render catches up
+        state = self._icon_state
+        if state == "listening":
+            image = menu_icon.listening(self._icon_step)
+        elif state == "thinking":
+            image = menu_icon.thinking(self._thinking_frame)
+        elif state == "warning":
+            image = menu_icon.warning()
+        else:
+            image = menu_icon.idle()
+        button = status_item.button()
+        if not self._icon_width_fixed:
+            self._reserve_icon_width(status_item)
+        button.setTitle_("")
+        button.setImage_(image)
+
+        # Animate the thinking dots only while thinking.
+        if state == "thinking" and self._thinking_timer is None:
+            self._thinking_timer = rumps.Timer(self._on_thinking_tick, 0.09)
+            self._thinking_timer.start()
+        elif state != "thinking" and self._thinking_timer is not None:
+            self._thinking_timer.stop()
+            self._thinking_timer = None
+            self._thinking_frame = 0
+
+    def _on_thinking_tick(self, _timer):
+        self._thinking_frame = (self._thinking_frame + 1) % menu_icon.THINKING_FRAMES
+        self._render_icon()
+
+    def _reserve_icon_width(self, status_item):
+        # Pin the slot to the widest state's icon so switching states never
+        # shifts the other menu-bar items. Each image is centred in the slot.
+        button = status_item.button()
+        button.setTitle_("")
+        button.setImagePosition_(AppKit.NSImageOnly)
+        widest = 0.0
+        for image in menu_icon.all_states():
+            button.setImage_(image)
+            widest = max(widest, button.fittingSize().width)
+        status_item.setLength_(widest)
+        self._icon_width_fixed = True
+        logging.debug(f"Menu-bar icon slot fixed at {widest:.1f}pt.")
+        AppHelper.callLater(2.0, self._log_status_item_placement)
+
+    def _log_status_item_placement(self):
+        # macOS silently hides menu-bar items that don't fit (e.g. behind the
+        # notch when the front app has long menus); record where ours landed.
+        try:
+            status_item = self._nsapp.nsstatusitem
+            window = status_item.button().window()
+            logging.info(
+                f"Menu-bar item: visible={status_item.isVisible()} "
+                f"frame={tuple(window.frame()) if window else None} "
+                f"occlusion={window.occlusionState() if window else None} "
+                f"screen={window.screen().localizedName() if window and window.screen() else None}"
+            )
+        except Exception as e:
+            logging.debug(f"Could not inspect menu-bar item: {e}")
+
+    def _play_start_sound(self):
+        # Audible confirmation that the mic is really open, for when you're not
+        # looking at the menu bar.
+        try:
+            start_sound.play()
+        except Exception as e:
+            logging.error(f"Start sound failed: {e}")
+
     def _set_listening_visual(self, speaking: bool, level: float):
         now = time.time()
         if now - self._last_wave_update < 0.05:
             return
         self._last_wave_update = now
 
-        if speaking and level > 0.03:
-            idx = int(level * (len(self._wave_chars) - 1))
-            idx = max(0, min(idx, len(self._wave_chars) - 1))
-            bar = self._wave_chars[idx]
-            self.title = f"🔴 {bar}{bar}{bar}"
+        # Fast attack, slower release, so the circle breathes rather than flickers.
+        if level < 0.02:
+            level = 0.0
+        if level > self._meter_level:
+            self._meter_level = level
         else:
-            # While dictating but silent, show no wave.
-            self.title = "🔴"
+            self._meter_level = self._meter_level * 0.6 + level * 0.4
+
+        step = menu_icon.quantise(self._meter_level)
+        if step != self._icon_step:
+            self._icon_step = step
+            self._run_on_main(self._render_icon)
 
     def _ensure_preview_panel(self):
         if self._preview_panel is not None:
@@ -796,7 +931,7 @@ class HandsFreeApp(rumps.App):
 
         if currently_dictating:
             # Off the main thread: stop_dictation transcribes synchronously, and
-            # doing that on the run loop freezes the UI so the "🤔" title never
+            # doing that on the run loop freezes the UI so the thinking icon never
             # renders. Matches how the hotkey path stops.
             threading.Thread(target=self.stop_dictation, daemon=True).start()
         else:
@@ -821,7 +956,9 @@ class HandsFreeApp(rumps.App):
             logging.debug(f"Captured target bundle for insertion: {self._target_bundle_id}")
 
         self._set_status("Listening")
-        self.title = "🔴"
+        self._meter_level = 0.0
+        self._icon_step = 0
+        self._set_icon("listening")
         self.dictate_button.title = "Stop Dictate (⌃⌥)"
         self._start_live_preview()
 
@@ -829,6 +966,7 @@ class HandsFreeApp(rumps.App):
             self.audio_engine.start_recording()
             self.recording_thread = threading.Thread(target=self.audio_pump, daemon=True)
             self.recording_thread.start()
+            self._play_start_sound()
         except Exception as e:
             logging.error(f"Error starting recording: {e}")
             with self._state_lock:
@@ -836,7 +974,7 @@ class HandsFreeApp(rumps.App):
                 self._active_mode = None
                 self._target_bundle_id = None
             self._stop_live_preview(hide_panel=True)
-            self.title = "🎙️"
+            self._set_icon("idle")
             self._set_status("Error")
 
     def stop_dictation(self, discard=False):
@@ -854,27 +992,22 @@ class HandsFreeApp(rumps.App):
             # The chord was used for a real shortcut, not dictation — throw the
             # audio away without transcribing or typing anything.
             self._stop_live_preview(hide_panel=True)
-            self.audio_engine.stop_recording()
-            if self.recording_thread:
-                self.recording_thread.join(timeout=1.0)
+            self._stop_audio()
             with self._state_lock:
                 self._active_mode = None
                 self._is_processing = False
                 self._target_bundle_id = None
-            self.title = "🎙️"
+            self._set_icon("idle")
             self._set_status("Idle")
             self.dictate_button.title = "Start Dictate (⌃⌥)"
             self._run_on_main(self._hide_preview_panel)
             return
 
-        self.title = "🤔"
+        self._set_icon("thinking")
         self._set_status("Thinking")
         self._stop_live_preview(hide_panel=False)
         self._run_on_main(self._set_preview_text, self._live_preview_text or "Thinking…")
-        self.audio_engine.stop_recording()
-
-        if self.recording_thread:
-            self.recording_thread.join(timeout=1.0)
+        self._stop_audio()
 
         try:
             self.process_transcription(self._active_mode)
@@ -886,10 +1019,23 @@ class HandsFreeApp(rumps.App):
             self._is_processing = False
             self._target_bundle_id = None
 
-        self.title = "🎙️"
+        self._set_icon("idle")
         self._set_status("Idle")
         self.dictate_button.title = "Start Dictate (⌃⌥)"
         self._run_on_main(self._hide_preview_panel)
+
+    def _stop_audio(self):
+        # Order matters: let the pump leave stream.read() (it checks
+        # _is_dictating every 30 ms chunk) BEFORE stopping the stream.
+        # Stopping PortAudio while another thread is blocked reading it
+        # deadlocks — on a very quick tap that froze the app in "processing"
+        # for good, silently ignoring every later hotkey press.
+        if self.recording_thread:
+            self.recording_thread.join(timeout=2.0)
+            if self.recording_thread.is_alive():
+                logging.error("Audio pump did not exit; not stopping the stream.")
+                return
+        self.audio_engine.stop_recording()
 
     def audio_pump(self):
         while self._is_dictating:

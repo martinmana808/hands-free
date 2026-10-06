@@ -95,14 +95,14 @@ app = BUNDLE(
     name="Hands Free.app",
     icon=None,
     bundle_identifier="com.martinmana.handsfree",
-    version="1.0.0",
+    version="0.2.0",
     info_plist={
         # Menu-bar only: no dock icon, no app switcher entry.
         "LSUIElement": True,
         "CFBundleName": "Hands Free",
         "CFBundleDisplayName": "Hands Free",
-        "CFBundleShortVersionString": "1.0.0",
-        "CFBundleVersion": "1.0.0",
+        "CFBundleShortVersionString": "0.2.0",
+        "CFBundleVersion": "0.2.0",
         "NSHighResolutionCapable": True,
         # Apple Silicon only — MLX has no Intel path.
         "LSMinimumSystemVersion": "13.0",
