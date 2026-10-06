@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Hands Free — dictation that types what you said</title>
-<meta name="description" content="A macOS dictation app that runs entirely on your Mac. Hold a key, speak, and your words appear — punctuated, de-ummed, and never rewritten. No cloud, no account, no subscription — and it's a free download.">
+<meta name="description" content="Free, local dictation for macOS. Hold a key, speak, and your words appear — punctuated, de-ummed, never rewritten. Three levels of smartness, nothing leaves your Mac, and every word you say is kept in a file you own.">
 <meta property="og:title" content="Hands Free — dictation that types what you said">
 <meta property="og:description" content="Local Whisper transcription with a cleanup pass that is only allowed to delete and punctuate — never to reword you. Nothing ever leaves your Mac.">
 <style>
@@ -183,9 +183,69 @@
   .foot-in { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; color: var(--muted); font-size: 14px; }
   .foot-in a:hover { color: var(--ink); }
 
+  /* Menu-bar icons showcase */
+  .icons { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; }
+  .icon-tile { border-radius: 22px; overflow: hidden; border: 1px solid var(--border); background: var(--surface); box-shadow: var(--shadow-sm); }
+  .icon-stage { position: relative; height: 230px; display: grid; place-items: center;
+    background: radial-gradient(120% 90% at 50% 0%, #2c2725, #141110 70%); color: #f4efec; }
+  .icon-stage::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 26px; background: rgba(255,255,255,.05); border-bottom: 1px solid rgba(255,255,255,.07); }
+  .icon-stage svg { width: 128px; height: 128px; overflow: visible; }
+  .icon-body { padding: 20px 22px 24px; }
+  .icon-body .state { font-size: 12px; font-weight: 650; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
+  .icon-body h3 { margin: 6px 0 6px; }
+  .icon-body p { color: var(--muted); font-size: 14.5px; }
+  .icons-note { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px 26px; margin-top: 28px; color: var(--muted); font-size: 14.5px; }
+  .icons-note b { color: var(--ink); font-weight: 600; }
+  .lvl-dot { transform-origin: 50% 50%; transform-box: fill-box; animation: speak 2.4s ease-in-out infinite; }
+  @keyframes speak {
+    0%,100% { transform: scale(.32); } 12% { transform: scale(.78); } 22% { transform: scale(.5); }
+    34% { transform: scale(1); } 46% { transform: scale(.62); } 58% { transform: scale(.88); }
+    70% { transform: scale(.4); } 84% { transform: scale(.7); }
+  }
+  .think-dot { transform-origin: 50% 50%; transform-box: fill-box; animation: wave 1.1s ease-in-out infinite; }
+  .think-dot:nth-child(2) { animation-delay: .18s; } .think-dot:nth-child(3) { animation-delay: .36s; }
+  @keyframes wave { 0%,100% { transform: scale(.46); } 40% { transform: scale(1); } }
+  .mic-idle { animation: breathe 3.2s ease-in-out infinite; }
+  @keyframes breathe { 0%,100% { opacity: .92; } 50% { opacity: 1; } }
+  .macbar .live .mini { width: 10px; height: 10px; border-radius: 50%; background: #ff453a; animation: speak 2.4s ease-in-out infinite; }
+  @media (max-width: 860px) { .icons { grid-template-columns: 1fr; } .icon-stage { height: 190px; } .icon-stage svg { width: 104px; height: 104px; } }
+
+  /* Levels */
+  .levels { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+  .level { border: 1px solid var(--border); background: var(--surface); border-radius: 18px; padding: 26px 24px; position: relative; }
+  .level .bars { display: flex; gap: 5px; margin-bottom: 18px; }
+  .level .bars i { display: block; width: 26px; height: 7px; border-radius: 99px; background: var(--surface-2); }
+  .level .bars i.on { background: var(--grad); }
+  .level .who { font-size: 13px; color: var(--muted); margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); }
+  .level p { color: var(--muted); font-size: 14.5px; margin-top: 8px; }
+  @media (max-width: 860px) { .levels { grid-template-columns: 1fr; } }
+
+  /* Your words, kept */
+  .keep { display: grid; grid-template-columns: 1.05fr 1fr; gap: 40px; align-items: center; }
+  .file { border-radius: 16px; border: 1px solid var(--border); background: var(--surface); box-shadow: var(--shadow); overflow: hidden; }
+  .file-top { display: flex; align-items: center; gap: 7px; padding: 10px 14px; background: var(--surface-2); border-bottom: 1px solid var(--border); font-size: 12.5px; color: var(--muted); }
+  .file-top i { width: 11px; height: 11px; border-radius: 50%; background: var(--border); display: block; }
+  .file-top span { margin-left: 8px; font-family: var(--mono); }
+  .file pre { margin: 0; padding: 18px 20px; font-family: var(--mono); font-size: 12.5px; line-height: 1.7; color: var(--ink); white-space: pre-wrap; }
+  .file pre .ts { color: var(--accent); }
+  .uses { display: grid; gap: 14px; margin-top: 24px; }
+  .use { display: flex; gap: 14px; align-items: flex-start; }
+  .use .ic { flex: 0 0 38px; width: 38px; height: 38px; border-radius: 10px; background: var(--grad-soft); display: grid; place-items: center; }
+  .use .ic svg { width: 20px; height: 20px; fill: none; stroke: var(--accent); stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+  .use h3 { font-size: 16px; }
+  .use p { color: var(--muted); font-size: 14.5px; margin-top: 2px; }
+  .keep-lead { color: var(--muted); font-size: 17px; margin-top: 14px; }
+  @media (max-width: 900px) { .keep { grid-template-columns: 1fr; } }
+
+  /* Install note + feedback */
+  .gate { max-width: 760px; margin: 30px auto 0; border: 1px dashed color-mix(in srgb, var(--accent) 45%, var(--border)); border-radius: 14px; padding: 16px 20px; color: var(--muted); font-size: 14.5px; background: var(--surface); }
+  .gate b { color: var(--ink); }
+  .gate code { font-family: var(--mono); font-size: 12.5px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 2px 6px; color: var(--ink); word-break: break-all; }
+  .fb-cta { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; }
+
   .reveal { opacity: 0; transform: translateY(16px); transition: opacity .6s ease, transform .6s ease; }
   .reveal.in { opacity: 1; transform: none; }
-  @media (prefers-reduced-motion: reduce) { .reveal { opacity: 1; transform: none; transition: none; } html { scroll-behavior: auto; } }
+  @media (prefers-reduced-motion: reduce) { .reveal { opacity: 1; transform: none; transition: none; } html { scroll-behavior: auto; } .lvl-dot, .think-dot, .mic-idle, .macbar .live .mini { animation: none; } }
 </style>
 </head>
 <body>
@@ -197,11 +257,11 @@
       Hands Free
     </a>
     <div class="nav-links">
-      <a href="#why" data-navlink data-i18n="nav_why">Why</a>
+      <a href="#menubar" data-navlink data-i18n="nav_menubar">Menu bar</a>
       <a href="#verbatim" data-navlink data-i18n="nav_verbatim">Verbatim</a>
-      <a href="#features" data-navlink data-i18n="nav_features">Features</a>
-      <a href="#how" data-navlink data-i18n="nav_how">How it works</a>
-      <a href="#download" data-navlink data-i18n="nav_download">Download</a>
+      <a href="#levels" data-navlink data-i18n="nav_levels">Smartness</a>
+      <a href="#yours" data-navlink data-i18n="nav_yours">Your words</a>
+      <a href="#feedback" data-navlink data-i18n="nav_feedback">Feedback</a>
       <button class="lang" id="lang" aria-label="Switch language">ES</button>
       <a class="btn btn-primary nav-cta" href="https://github.com/martinmana808/hands-free/releases/latest" target="_blank" rel="noopener" data-i18n="nav_get">Download for Mac</a>
     </div>
@@ -218,20 +278,21 @@
         <a class="btn btn-primary" href="https://github.com/martinmana808/hands-free/releases/latest" target="_blank" rel="noopener" data-i18n="hero_cta1">Download for Mac</a>
         <a class="btn btn-ghost" href="#verbatim" data-i18n="hero_cta2">See it stay verbatim</a>
       </div>
-      <div class="meta" data-i18n="hero_meta">Free · No account · Nothing leaves your Mac</div>
+      <div class="meta" data-i18n="hero_meta">Free · Open source · 100% local · Nothing leaves your Mac</div>
     </div>
     <div class="reveal">
       <div class="mockwrap">
         <div class="macbar">
-          <span class="live"><span class="tick"></span> Listening</span>
+          <span class="live"><span class="mini"></span> <span data-i18n="mock_status_v">Listening</span></span>
           <span>100%</span><span>Tue 14:32</span>
         </div>
         <div class="menupanel">
-          <div class="mrow"><span class="k" data-i18n="mock_status">Status:</span><span class="v" data-i18n="mock_status_v">Listening</span></div>
+          <div class="mrow"><span class="k" data-i18n="mock_status">Status:</span><span class="v" data-i18n="mock_status_v2">Listening</span></div>
           <div class="mrow"><span class="k" data-i18n="mock_last">Last:</span><span class="v mono" style="font-size:12px">Saturday was a nice…</span></div>
           <div class="mrow hl"><span data-i18n="mock_stop">Stop Dictate</span><span class="v"><span class="kbd">⌃⌥</span></span></div>
           <div class="mrow"><span class="k" data-i18n="mock_speed">Fast</span><span class="slider"></span><span class="k" data-i18n="mock_acc">Accurate</span></div>
           <div class="mrow"><span class="k" data-i18n="mock_mode">Mode:</span><span class="v" data-i18n="mock_mode_v">Balanced</span></div>
+          <div class="mrow"><span data-i18n="mock_all">Open All Transcripts…</span></div>
           <div class="mrow"><span data-i18n="mock_login">Start at Login</span><span class="v">✓</span></div>
         </div>
       </div>
@@ -239,6 +300,45 @@
     </div>
   </div>
 </header>
+
+<section id="menubar">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <div class="eyebrow" data-i18n="mb_eyebrow">Lives in your menu bar</div>
+      <h2 data-i18n="mb_h2">One little icon. Three states. Always the same size.</h2>
+      <p data-i18n="mb_p">Hands Free sits quietly next to your clock. Glance up and you know exactly what it's doing — and it never nudges the icons beside it.</p>
+    </div>
+    <div class="icons">
+      <div class="icon-tile reveal">
+        <div class="icon-stage"><svg viewBox="0 0 24 24" class="mic-idle" aria-hidden="true"><rect x="8.25" y="1.75" width="7.5" height="13" rx="3.75" fill="currentColor"/><path d="M4.75 11a7.25 7.25 0 0 0 14.5 0" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M12 18.4v3.6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></div>
+        <div class="icon-body">
+          <div class="state" data-i18n="ic1_state">Ready</div>
+          <h3 data-i18n="ic1_h">The microphone</h3>
+          <p data-i18n="ic1_p">Waiting, using nothing. Hold <span class="kbd">⌃⌥</span> from any app to start talking.</p>
+        </div>
+      </div>
+      <div class="icon-tile reveal">
+        <div class="icon-stage"><svg viewBox="0 0 24 24" aria-hidden="true"><circle class="lvl-dot" cx="12" cy="12" r="10" fill="#ff453a"/></svg></div>
+        <div class="icon-body">
+          <div class="state" data-i18n="ic2_state">Listening</div>
+          <h3 data-i18n="ic2_h">The growing dot</h3>
+          <p data-i18n="ic2_p">A red dot that swells with your voice — the louder you speak, the bigger it gets. You can see it hearing you.</p>
+        </div>
+      </div>
+      <div class="icon-tile reveal">
+        <div class="icon-stage"><svg viewBox="0 0 24 24" aria-hidden="true"><g fill="currentColor"><circle class="think-dot" cx="5" cy="12" r="2.6"/><circle class="think-dot" cx="12" cy="12" r="2.6"/><circle class="think-dot" cx="19" cy="12" r="2.6"/></g></svg></div>
+        <div class="icon-body">
+          <div class="state" data-i18n="ic3_state">Thinking</div>
+          <h3 data-i18n="ic3_h">The three dots</h3>
+          <p data-i18n="ic3_p">You let go, it transcribes. A second later your words are typed where your cursor is.</p>
+        </div>
+      </div>
+    </div>
+    <div class="icons-note reveal">
+      <span data-i18n="mb_n1"><b>Hear it start:</b> a soft bubble pop the moment the mic opens — so you never talk to an app that isn't listening.</span>
+    </div>
+  </div>
+</section>
 
 <section id="why">
   <div class="wrap">
@@ -285,6 +385,62 @@
   </div>
 </section>
 
+<section id="levels">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <div class="eyebrow" data-i18n="lv_eyebrow">Three levels of smartness</div>
+      <h2 data-i18n="lv_h2">Pick how hard it thinks.</h2>
+      <p data-i18n="lv_p">One slider in the menu bar. Move it any time — your choice is remembered.</p>
+    </div>
+    <div class="levels">
+      <div class="level reveal">
+        <div class="bars"><i class="on"></i><i></i><i></i></div>
+        <h3 data-i18n="lv1_h">Fastest</h3>
+        <p data-i18n="lv1_p">Whisper Turbo in a single pass, plus punctuation and capitals. Text is there almost before you let go.</p>
+        <div class="who" data-i18n="lv1_w">For quick replies, chats and searches.</div>
+      </div>
+      <div class="level reveal">
+        <div class="bars"><i class="on"></i><i class="on"></i><i></i></div>
+        <h3 data-i18n="lv2_h">Balanced</h3>
+        <p data-i18n="lv2_p">Retries the hard bits, then a small local AI model removes the ums and false starts — without changing your words.</p>
+        <div class="who" data-i18n="lv2_w">The default. Great for almost everything.</div>
+      </div>
+      <div class="level reveal">
+        <div class="bars"><i class="on"></i><i class="on"></i><i class="on"></i></div>
+        <h3 data-i18n="lv3_h">Accurate</h3>
+        <p data-i18n="lv3_p">The full Whisper large-v3 model plus cleanup. A little slower, noticeably better with accents, names and mumbling.</p>
+        <div class="who" data-i18n="lv3_w">For long thinking-out-loud sessions.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="yours" style="background:var(--surface-2)">
+  <div class="wrap keep">
+    <div class="reveal">
+      <div class="eyebrow" data-i18n="yo_eyebrow">Your words, kept</div>
+      <h2 style="margin-top:12px" data-i18n="yo_h2">Everything you say, saved for you. Only for you.</h2>
+      <p class="keep-lead" data-i18n="yo_p">Every dictation is added to one plain-text file on your Mac, with the date and time. Nothing is lost, nothing is uploaded — and that record turns out to be valuable.</p>
+      <div class="uses">
+        <div class="use"><div class="ic"><svg viewBox="0 0 24 24"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M6 6l2 2M16 16l2 2M6 18l2-2M16 8l2-2"/><circle cx="12" cy="12" r="3"/></svg></div><div><h3 data-i18n="u1_h">Train your own models</h3><p data-i18n="u1_p">Months of your real speech, in your own words — ready-made data for fine-tuning.</p></div></div>
+        <div class="use"><div class="ic"><svg viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 13h7M9 17h5"/></svg></div><div><h3 data-i18n="u2_h">Write your own documentation</h3><p data-i18n="u2_p">The ideas you explained out loud become notes, specs and docs you can mine later.</p></div></div>
+        <div class="use"><div class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg></div><div><h3 data-i18n="u3_h">Give AI context about you</h3><p data-i18n="u3_p">Hand the file to any assistant so it knows how you think, what you work on and how you talk.</p></div></div>
+      </div>
+    </div>
+    <div class="file reveal">
+      <div class="file-top"><i></i><i></i><i></i><span>Hands Free Transcripts.txt</span></div>
+<pre><span class="ts">[2026-10-06 09:14:02]</span>
+Remind me to send the invoice to Laura before Friday, and ask her about the second phase.
+
+<span class="ts">[2026-10-06 11:40:57]</span>
+The onboarding should feel like one step, not three. Permissions first, then a single test dictation.
+
+<span class="ts">[2026-10-06 18:03:21]</span>
+Idea for the weekend: walk to San Isidro, take a book for the book box.</pre>
+    </div>
+  </div>
+</section>
+
 <section id="features">
   <div class="wrap">
     <div class="sec-head reveal">
@@ -300,7 +456,7 @@
       <div class="feat reveal">
         <div class="ic"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
         <h3 data-i18n="f2_h">Nothing leaves your Mac</h3>
-        <p data-i18n="f2_p">Transcription and cleanup both run on-device. Works on a plane, in a hospital, under an NDA. Your audio is never stored or uploaded.</p>
+        <p data-i18n="f2_p">Transcription and cleanup both run on-device. Works on a plane, in a hospital, under an NDA. Audio is never stored or uploaded — only your text, in a file on your Mac.</p>
       </div>
       <div class="feat reveal">
         <div class="ic"><svg viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z"/></svg></div>
@@ -313,9 +469,9 @@
         <p data-i18n="f4_p">Output is rejected if it invents words, reorders your phrasing, or drops what you said. When in doubt, you get the plain version — never a hallucination.</p>
       </div>
       <div class="feat reveal">
-        <div class="ic"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h10M4 17h13"/></svg></div>
-        <h3 data-i18n="f5_h">Speed or accuracy, your call</h3>
-        <p data-i18n="f5_p">One slider in the menu bar. Fastest for quick replies, Accurate for accents and mumbles and long thinking-out-loud sessions.</p>
+        <div class="ic"><svg viewBox="0 0 24 24"><circle cx="9" cy="14" r="5"/><circle cx="16.5" cy="7.5" r="3.2"/><circle cx="19" cy="17" r="1.8"/></svg></div>
+        <h3 data-i18n="f5_h">Hear it start</h3>
+        <p data-i18n="f5_p">A soft bubble pop the instant the microphone opens. Eyes on something else? You'll still know it's listening.</p>
       </div>
       <div class="feat reveal">
         <div class="ic"><svg viewBox="0 0 24 24"><path d="M12 8v5l3 2"/><circle cx="12" cy="12" r="9"/></svg></div>
@@ -346,6 +502,9 @@
         <p data-i18n="s3_p">First launch downloads the models once. After that it's instant, offline, and out of your way forever.</p>
       </div>
     </div>
+    <div class="gate reveal" data-i18n="gate">
+      <b>Opening it the first time:</b> Hands Free is free and not sold through Apple, so macOS warns you once. Click <b>Done</b>, then <b>System Settings → Privacy &amp; Security → Open Anyway</b>. Or paste this into Terminal: <code>xattr -dr com.apple.quarantine "/Applications/Hands Free.app"</code>
+    </div>
   </div>
 </section>
 
@@ -362,8 +521,8 @@
         <ul class="plist">
           <li><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg><span data-i18n="pl1">Unlimited dictation, no word caps</span></li>
           <li><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg><span data-i18n="pl2">Works fully offline, forever</span></li>
-          <li><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg><span data-i18n="pl3">Use it on all your own Macs</span></li>
-          <li><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg><span data-i18n="pl4">Free updates · no account required</span></li>
+          <li><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg><span data-i18n="pl3">Three levels of smartness, one slider</span></li>
+          <li><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg><span data-i18n="pl4">Free and open source · no account</span></li>
         </ul>
         <a class="btn btn-primary" style="width:100%;justify-content:center;font-size:16px;padding:13px 24px" href="https://github.com/martinmana808/hands-free/releases/latest" target="_blank" rel="noopener" data-i18n="dl_cta">Download for Mac</a>
         <div class="once" style="margin-top:14px" data-i18n="dl_req">Apple Silicon · macOS 13 or later</div>
@@ -372,12 +531,17 @@
   </div>
 </section>
 
-<section style="padding-top:0">
+<section id="feedback" style="padding-top:0">
   <div class="wrap">
     <div class="final reveal">
-      <h2 data-i18n="final_h">Say it once. Keep your words.</h2>
-      <p data-i18n="final_p">Dictation you can use on anything — a diary entry, a patient note, an idea at midnight — knowing it stays on your Mac and stays yours.</p>
-      <a class="btn btn-primary" style="font-size:16px;padding:13px 24px" href="https://github.com/martinmana808/hands-free/releases/latest" target="_blank" rel="noopener" data-i18n="final_cta">Download for Mac</a>
+      <div class="eyebrow" data-i18n="fb_eyebrow">Feedback</div>
+      <h2 style="margin-top:12px" data-i18n="final_h">Tried it? I'd love to hear from you.</h2>
+      <p data-i18n="final_p">Hands Free is a free, open project made by one person. A comment, a bug, an idea, or just "it works for me" — every bit of feedback is much appreciated.</p>
+      <div class="fb-cta">
+        <a class="btn btn-primary" style="font-size:16px;padding:13px 24px" href="https://github.com/martinmana808/hands-free/discussions" target="_blank" rel="noopener" data-i18n="fb_cta1">Leave a comment</a>
+        <a class="btn btn-ghost" style="font-size:16px;padding:13px 24px" href="https://github.com/martinmana808/hands-free/issues/new" target="_blank" rel="noopener" data-i18n="fb_cta2">Report a bug</a>
+        <a class="btn btn-ghost" style="font-size:16px;padding:13px 24px" href="https://github.com/martinmana808/hands-free" target="_blank" rel="noopener" data-i18n="fb_cta3">★ Star on GitHub</a>
+      </div>
     </div>
   </div>
 </section>
@@ -388,6 +552,8 @@
     <span data-i18n="foot_tag">— dictation that keeps your words.</span>
     <span style="margin-left:auto"></span>
     <a href="https://github.com/martinmana808/hands-free/releases/latest" target="_blank" rel="noopener" data-i18n="foot_get">Download</a>
+    <a href="https://github.com/martinmana808/hands-free" target="_blank" rel="noopener">GitHub</a>
+    <a href="https://github.com/martinmana808/hands-free/discussions" target="_blank" rel="noopener" data-i18n="foot_fb">Feedback</a>
     <a href="#" id="lang2" data-i18n="foot_lang">Español</a>
   </div>
 </footer>
@@ -395,12 +561,31 @@
 <script>
   var I = {
     en: {
+      nav_menubar:"Menu bar", nav_levels:"Smartness", nav_yours:"Your words", nav_feedback:"Feedback",
+      mock_status_v2:"Listening", mock_all:"Open All Transcripts…",
+      mb_eyebrow:"Lives in your menu bar", mb_h2:"One little icon. Three states. Always the same size.",
+      mb_p:"Hands Free sits quietly next to your clock. Glance up and you know exactly what it's doing — and it never nudges the icons beside it.",
+      ic1_state:"Ready", ic1_h:"The microphone", ic1_p:"Waiting, using nothing. Hold <span class=\"kbd\">⌃⌥</span> from any app to start talking.",
+      ic2_state:"Listening", ic2_h:"The growing dot", ic2_p:"A red dot that swells with your voice — the louder you speak, the bigger it gets. You can see it hearing you.",
+      ic3_state:"Thinking", ic3_h:"The three dots", ic3_p:"You let go, it transcribes. A second later your words are typed where your cursor is.",
+      mb_n1:"<b>Hear it start:</b> a soft bubble pop the moment the mic opens — so you never talk to an app that isn't listening.",
+      lv_eyebrow:"Three levels of smartness", lv_h2:"Pick how hard it thinks.", lv_p:"One slider in the menu bar. Move it any time — your choice is remembered.",
+      lv1_h:"Fastest", lv1_p:"Whisper Turbo in a single pass, plus punctuation and capitals. Text is there almost before you let go.", lv1_w:"For quick replies, chats and searches.",
+      lv2_h:"Balanced", lv2_p:"Retries the hard bits, then a small local AI model removes the ums and false starts — without changing your words.", lv2_w:"The default. Great for almost everything.",
+      lv3_h:"Accurate", lv3_p:"The full Whisper large-v3 model plus cleanup. A little slower, noticeably better with accents, names and mumbling.", lv3_w:"For long thinking-out-loud sessions.",
+      yo_eyebrow:"Your words, kept", yo_h2:"Everything you say, saved for you. Only for you.",
+      yo_p:"Every dictation is added to one plain-text file on your Mac, with the date and time. Nothing is lost, nothing is uploaded — and that record turns out to be valuable.",
+      u1_h:"Train your own models", u1_p:"Months of your real speech, in your own words — ready-made data for fine-tuning.",
+      u2_h:"Write your own documentation", u2_p:"The ideas you explained out loud become notes, specs and docs you can mine later.",
+      u3_h:"Give AI context about you", u3_p:"Hand the file to any assistant so it knows how you think, what you work on and how you talk.",
+      gate:"<b>Opening it the first time:</b> Hands Free is free and not sold through Apple, so macOS warns you once. Click <b>Done</b>, then <b>System Settings → Privacy &amp; Security → Open Anyway</b>. Or paste this into Terminal: <code>xattr -dr com.apple.quarantine \"/Applications/Hands Free.app\"</code>",
+      fb_eyebrow:"Feedback", fb_cta1:"Leave a comment", fb_cta2:"Report a bug", fb_cta3:"★ Star on GitHub", foot_fb:"Feedback",
       nav_why:"Why", nav_verbatim:"Verbatim", nav_features:"Features", nav_how:"How it works", nav_download:"Download", nav_get:"Download for Mac",
       hero_eyebrow:"Dictation for macOS",
       hero_h1:"Types <span class='accent'>what you said</span>. Not what a model thinks you meant.",
       hero_sub:"Hold one key, speak, let go. Your words land in whatever app you're in — punctuated, de-ummed, and never reworded. Everything runs on your Mac.",
       hero_cta1:"Download for Mac", hero_cta2:"See it stay verbatim",
-      hero_meta:"Free · No account · Nothing leaves your Mac",
+      hero_meta:"Free · Open source · 100% local · Nothing leaves your Mac",
       mock_status:"Status:", mock_status_v:"Listening", mock_last:"Last:", mock_stop:"Stop Dictate",
       mock_speed:"Fast", mock_acc:"Accurate", mock_mode:"Mode:", mock_mode_v:"Balanced", mock_login:"Start at Login",
       shot_cap:"Lives in your menu bar. No dock icon, no window in your way.",
@@ -418,10 +603,10 @@
       verb_note:"Same words, in the same order. Only punctuation and capitalisation were added — highlighted above.",
       feat_eyebrow:"What you get", feat_h2:"Fast, quiet, and entirely yours.",
       f1_h:"Hold-to-talk", f1_p:"Hold Control+Option anywhere, speak, release. The text appears where your cursor already is — no window to open, no button to find.",
-      f2_h:"Nothing leaves your Mac", f2_p:"Transcription and cleanup both run on-device. Works on a plane, in a hospital, under an NDA. Your audio is never stored or uploaded.",
+      f2_h:"Nothing leaves your Mac", f2_p:"Transcription and cleanup both run on-device. Works on a plane, in a hospital, under an NDA. Audio is never stored or uploaded — only your text, in a file on your Mac.",
       f3_h:"A second, not a wait", f3_p:"Whisper runs on the Apple GPU and the cleanup model adds about a second. You speak, you release, it's there.",
       f4_h:"Guarded against rewrites", f4_p:"Output is rejected if it invents words, reorders your phrasing, or drops what you said. When in doubt, you get the plain version — never a hallucination.",
-      f5_h:"Speed or accuracy, your call", f5_p:"One slider in the menu bar. Fastest for quick replies, Accurate for accents and mumbles and long thinking-out-loud sessions.",
+      f5_h:"Hear it start", f5_p:"A soft bubble pop the instant the microphone opens. Eyes on something else? You'll still know it's listening.",
       f6_h:"Always there", f6_p:"Starts at login and waits in the menu bar using nothing until you hold the key. Your last few dictations stay one click from the clipboard.",
       how_eyebrow:"Setup", how_h2:"Three steps, then forget it exists.",
       s1_h:"Drag it to Applications", s1_p:"One app bundle with everything inside. No Python, no Homebrew, no command line, no separate AI server to babysit.",
@@ -431,19 +616,38 @@
       dl_p:"There's no server to run and no account to make — download it and hold the key.",
       dl_tag:"macOS app",
       pl1:"Unlimited dictation, no word caps", pl2:"Works fully offline, forever",
-      pl3:"Use it on all your own Macs", pl4:"Free updates · no account required",
+      pl3:"Three levels of smartness, one slider", pl4:"Free and open source · no account",
       dl_cta:"Download for Mac", dl_req:"Apple Silicon · macOS 13 or later",
-      final_h:"Say it once. Keep your words.",
-      final_p:"Dictation you can use on anything — a diary entry, a patient note, an idea at midnight — knowing it stays on your Mac and stays yours.",
+      final_h:"Tried it? I'd love to hear from you.",
+      final_p:"Hands Free is a free, open project made by one person. A comment, a bug, an idea, or just \"it works for me\" — every bit of feedback is much appreciated.",
       final_cta:"Download for Mac", foot_tag:"— dictation that keeps your words.", foot_get:"Download", foot_lang:"Español"
     },
     es: {
+      nav_menubar:"Barra de menú", nav_levels:"Inteligencia", nav_yours:"Tus palabras", nav_feedback:"Comentarios",
+      mock_status_v2:"Escuchando", mock_all:"Abrir todas las transcripciones…",
+      mb_eyebrow:"Vive en tu barra de menú", mb_h2:"Un ícono chiquito. Tres estados. Siempre del mismo tamaño.",
+      mb_p:"Hands Free espera tranquilo al lado del reloj. Mirás arriba y sabés exactamente qué está haciendo — y nunca empuja a los íconos de al lado.",
+      ic1_state:"Listo", ic1_h:"El micrófono", ic1_p:"Esperando, sin consumir nada. Mantené <span class=\"kbd\">⌃⌥</span> desde cualquier app para empezar a hablar.",
+      ic2_state:"Escuchando", ic2_h:"El punto que crece", ic2_p:"Un punto rojo que se agranda con tu voz — cuanto más fuerte hablás, más grande se pone. Lo ves escuchándote.",
+      ic3_state:"Pensando", ic3_h:"Los tres puntos", ic3_p:"Soltás, transcribe. Un segundo después tus palabras aparecen donde está tu cursor.",
+      mb_n1:"<b>Escuchá cuando arranca:</b> un suave \"pop\" de burbuja apenas se abre el micrófono — así nunca le hablás a una app que no te escucha.",
+      lv_eyebrow:"Tres niveles de inteligencia", lv_h2:"Elegí cuánto piensa.", lv_p:"Un control en la barra de menú. Cambialo cuando quieras — recuerda tu elección.",
+      lv1_h:"Rápido", lv1_p:"Whisper Turbo en una sola pasada, más puntuación y mayúsculas. El texto aparece casi antes de que sueltes.", lv1_w:"Para respuestas rápidas, chats y búsquedas.",
+      lv2_h:"Equilibrado", lv2_p:"Reintenta las partes difíciles y después un pequeño modelo de IA local saca los \"eh\" y los arranques en falso — sin cambiar tus palabras.", lv2_w:"El predeterminado. Ideal para casi todo.",
+      lv3_h:"Preciso", lv3_p:"El modelo completo Whisper large-v3 más la limpieza. Un poco más lento, notablemente mejor con acentos, nombres y murmullos.", lv3_w:"Para sesiones largas pensando en voz alta.",
+      yo_eyebrow:"Tus palabras, guardadas", yo_h2:"Todo lo que decís, guardado para vos. Solo para vos.",
+      yo_p:"Cada dictado se agrega a un único archivo de texto en tu Mac, con fecha y hora. No se pierde nada, no se sube nada — y ese registro termina valiendo mucho.",
+      u1_h:"Entrená tus propios modelos", u1_p:"Meses de tu habla real, con tus propias palabras — datos listos para hacer fine-tuning.",
+      u2_h:"Escribí tu propia documentación", u2_p:"Las ideas que explicaste en voz alta se vuelven notas, especificaciones y documentos para aprovechar después.",
+      u3_h:"Dale contexto sobre vos a una IA", u3_p:"Pasale el archivo a cualquier asistente para que sepa cómo pensás, en qué trabajás y cómo hablás.",
+      gate:"<b>La primera vez que lo abrís:</b> Hands Free es gratis y no se vende a través de Apple, así que macOS te advierte una vez. Hacé clic en <b>Listo</b> y después en <b>Configuración del Sistema → Privacidad y seguridad → Abrir igualmente</b>. O pegá esto en la Terminal: <code>xattr -dr com.apple.quarantine \"/Applications/Hands Free.app\"</code>",
+      fb_eyebrow:"Comentarios", fb_cta1:"Dejá un comentario", fb_cta2:"Reportá un error", fb_cta3:"★ Dale una estrella en GitHub", foot_fb:"Comentarios",
       nav_why:"Por qué", nav_verbatim:"Textual", nav_features:"Funciones", nav_how:"Cómo funciona", nav_download:"Descargar", nav_get:"Descargar para Mac",
       hero_eyebrow:"Dictado para macOS",
       hero_h1:"Escribe <span class='accent'>lo que dijiste</span>. No lo que un modelo cree que quisiste decir.",
       hero_sub:"Mantené una tecla, hablá, soltá. Tus palabras aparecen en la app en la que estés — con puntuación, sin muletillas y sin reescribir. Todo corre en tu Mac.",
       hero_cta1:"Descargar para Mac", hero_cta2:"Ver que respeta tus palabras",
-      hero_meta:"Gratis · Sin cuenta · Nada sale de tu Mac",
+      hero_meta:"Gratis · Código abierto · 100% local · Nada sale de tu Mac",
       mock_status:"Estado:", mock_status_v:"Escuchando", mock_last:"Último:", mock_stop:"Detener dictado",
       mock_speed:"Rápido", mock_acc:"Preciso", mock_mode:"Modo:", mock_mode_v:"Equilibrado", mock_login:"Iniciar al arrancar",
       shot_cap:"Vive en la barra de menú. Sin ícono en el Dock, sin ventanas molestando.",
@@ -461,10 +665,10 @@
       verb_note:"Las mismas palabras, en el mismo orden. Solo se agregó puntuación y mayúsculas — resaltadas arriba.",
       feat_eyebrow:"Qué incluye", feat_h2:"Rápido, silencioso y completamente tuyo.",
       f1_h:"Mantener para hablar", f1_p:"Mantené Control+Option en cualquier lado, hablá, soltá. El texto aparece donde ya está tu cursor — sin abrir ventanas ni buscar botones.",
-      f2_h:"Nada sale de tu Mac", f2_p:"La transcripción y la limpieza corren en el dispositivo. Funciona en un avión, en un hospital, bajo un acuerdo de confidencialidad. Tu audio nunca se guarda ni se sube.",
+      f2_h:"Nada sale de tu Mac", f2_p:"La transcripción y la limpieza corren en el dispositivo. Funciona en un avión, en un hospital, bajo un acuerdo de confidencialidad. El audio nunca se guarda ni se sube — solo tu texto, en un archivo en tu Mac.",
       f3_h:"Un segundo, no una espera", f3_p:"Whisper corre en la GPU de Apple y el modelo de limpieza suma alrededor de un segundo. Hablás, soltás, ya está.",
       f4_h:"Protegido contra reescrituras", f4_p:"El resultado se rechaza si inventa palabras, cambia el orden o se come lo que dijiste. Ante la duda, recibís la versión simple — nunca una alucinación.",
-      f5_h:"Velocidad o precisión, vos elegís", f5_p:"Un control en la barra de menú. Rápido para respuestas cortas, Preciso para acentos, murmullos y sesiones largas pensando en voz alta.",
+      f5_h:"Escuchá cuando arranca", f5_p:"Un suave \"pop\" de burbuja en el instante en que se abre el micrófono. ¿Estás mirando otra cosa? Igual sabés que te está escuchando.",
       f6_h:"Siempre ahí", f6_p:"Arranca al iniciar sesión y espera en la barra de menú sin consumir nada hasta que mantengas la tecla. Tus últimos dictados quedan a un clic del portapapeles.",
       how_eyebrow:"Instalación", how_h2:"Tres pasos y te olvidás de que existe.",
       s1_h:"Arrastralo a Aplicaciones", s1_p:"Una sola app con todo adentro. Sin Python, sin Homebrew, sin terminal, sin un servidor de IA aparte que mantener.",
@@ -474,10 +678,10 @@
       dl_p:"No hay servidor que mantener ni cuenta que crear — descargalo y mantené la tecla.",
       dl_tag:"App para macOS",
       pl1:"Dictado ilimitado, sin límite de palabras", pl2:"Funciona sin internet, para siempre",
-      pl3:"Usalo en todas tus Macs", pl4:"Actualizaciones gratis · sin cuenta",
+      pl3:"Tres niveles de inteligencia, un solo control", pl4:"Gratis y de código abierto · sin cuenta",
       dl_cta:"Descargar para Mac", dl_req:"Apple Silicon · macOS 13 o posterior",
-      final_h:"Decilo una vez. Quedate con tus palabras.",
-      final_p:"Dictado que podés usar para cualquier cosa — un diario, una nota médica, una idea a medianoche — sabiendo que se queda en tu Mac y sigue siendo tuyo.",
+      final_h:"¿Lo probaste? Me encantaría saber qué te pareció.",
+      final_p:"Hands Free es un proyecto gratuito y abierto, hecho por una sola persona. Un comentario, un error, una idea o simplemente \"me funciona\" — cualquier devolución se agradece muchísimo.",
       final_cta:"Descargar para Mac", foot_tag:"— dictado que respeta tus palabras.", foot_get:"Descargar", foot_lang:"English"
     }
   };

@@ -15,7 +15,7 @@ Produces `mac-app/dist/Hands Free.app` (~477 MB). Install it with:
 cp -R "mac-app/dist/Hands Free.app" /Applications/
 ```
 
-Then double-click it. It runs in the menu bar (🎙️), with no dock icon.
+Then double-click it. It runs in the menu bar (a microphone icon), with no dock icon.
 
 ## First run
 
